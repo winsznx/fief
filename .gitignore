@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# builds / caches
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# 0G Compute seam spike run artifacts (generated locally; may embed live provider responses)
+internal/seam/p0.2/report/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+
+# Qwen Code local settings (tool-local, not part of the product)
+.qwen/
+
+# NOTE: /internal/ is intentionally TRACKED for now so collaborators have full context.
+# Per PRD §15 it is slated to be gitignored before public launch. Its history will
+# persist in git, so decide on a history scrub (or keep the repo private) before then.

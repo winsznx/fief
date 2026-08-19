@@ -1,0 +1,17 @@
+{
+  "name": "fief-p0-2-seam-spike",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "FIEF P0.2 seam spike: independent verification of 0G Compute TEE-signed inference for the RecordBook seam.",
+  "scripts": {
+    "seam": "node seam.mjs"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
+    "ethers": "^6.13.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
