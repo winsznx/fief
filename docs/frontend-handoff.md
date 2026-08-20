@@ -15,6 +15,17 @@
 
 ---
 
+## Changelog — v1.1 (2026-08-20, ratified after Jemiiah's Q1–Q4)
+
+_These override anything below that conflicts. The §7 data contract already reflects them._
+
+- **Q1 — rejected rows are NOT stored entries.** On-chain, `entries[]` holds **accepted decisions only**; a rejected submission reverts, or (for the demo) emits a `DecisionRejected` **event** via `recordDecisionStrict` — never appended. Therefore: `DecisionEntry.index` → **`entryIndex: number | null`** (null when rejected); **detail/deep-link routes on `txHash`**, never on index; `Agent.decisionCount` is **accepted-only**; **`brainBoundPct` is removed** (every stored entry is provenance-verified by invariant I1, so a fraction is either always 100% or misleading) — show **"N accepted · 1 rejected (tamper test)"** + a `verified` badge; and the Agent Record **ledger shows accepted entries only** — the green/red pair is a **proof artifact** on `/proof` + the landing showcase, explicitly labeled a tamper test.
+- **Q2 — DataSource v1.1 ratified (additive-only).** Every page reads through `DataSource`; no direct fixture imports in components. Blessed: **`VerifyResult.outcome`** (`valid|tampered|not_found|error`) and **`getShowcasePair()`** (so `/` and `/proof` get the pair through the data layer and flip to live via env — Q4). Also added **`getEntry(txHash)`** for txHash routing. Paste your full 13-item list in the PR for the record; anything additive that stays behind the interface and doesn't overclaim is pre-approved.
+- **Q3 — rental terms.** `Listing` gains **`termSeconds`**; at rent, **`expiry = now + termSeconds`** and **`maxDecisions = floor(escrow / feePerDecisionWei)`** (derived client-side, shown pre-confirm). Also a contract change (PRD §5 RentalDesk) — owner handles it.
+- **Q4 — canonical demo tx hashes live in env:** `NEXT_PUBLIC_GREEN_TX` / `NEXT_PUBLIC_RED_TX`. `getShowcasePair()` resolves them in live mode; P4 sets two Cloudflare Pages env vars — **no frontend PR**. README / X post / video cite the same pair.
+
+---
+
 ## 1. What Fief is (so the UI tells the right story)
 
 Fief is a marketplace to **rent or buy trading agents whose track record is signed by their own sealed brain.** Each decision an agent makes comes back **TEE-signed by 0G Compute**, is **verified on-chain** against the agent's **sealed strategy commitment**, and is appended to a **record that travels with the agent's ERC-7857 token** when it's rented or sold. The strategy stays **encrypted** on 0G Storage; only hashes are public.
@@ -71,7 +82,7 @@ web/
 
 - **Top nav:** logo → `/`, links to Marketplace `/agents`, Proof `/proof`, Verify `/verify`, Docs/About `/about`, and (right side) **Connect Wallet** + **network indicator**.
 - **Network guard:** if a wallet is connected on the wrong chain, show a banner "Switch to 0G Mainnet (16661)" with a one-click switch. Read-only pages never force a wallet.
-- **Honest-status badge:** a small reusable component (e.g. "Live on 0G mainnet · N decisions · 100% brain-bound") used on landing, agent record, and proof pages.
+- **Honest-status badge:** a small reusable component (e.g. "Live on 0G mainnet · N decisions · verified") used on landing, agent record, and proof pages. (No fraction — Changelog Q1.)
 - **Footer:** links to GitHub repo, 0G docs, the `fief-verify` command, honest-status one-liner.
 
 ---
@@ -94,16 +105,17 @@ For each page: **route · goal · sections/components · data (from §7) · stat
 
 ### 5.3 Marketplace — `/agents`
 - **Goal:** browse listed agents.
-- **Sections:** grid of **agent cards** (name, domain, decision count, **% brain-bound**, epoch, fee-per-decision if listed, small green/red sparkline of recent entries); filters (domain, has-live-record, listed/not); empty state.
+- **Sections:** grid of **agent cards** (name, domain, decision count (accepted), **verified badge** (not a %), epoch, fee-per-decision if listed, small sparkline of recent accepted entries); filters (domain, has-live-record, listed/not); empty state.
 - **Data:** `listAgents()`, `getListing(tokenId)` per card.
 - **States:** loading skeletons, empty ("no agents yet"), error.
 
 ### 5.4 Agent Record — `/agents/[tokenId]`  ← the star page
 - **Goal:** the trustworthy track record. This is where provenance becomes tangible.
 - **Sections:**
-  - **Header:** name, owner, operator (short), epoch, domain, network badge, decision count, **% brain-bound**, "Rent" + "Request audit access" CTAs.
+  - **Header:** name, owner, operator (short), epoch, domain, network badge, **N decisions (accepted) · verified** badge (no percentage — Changelog Q1), "Rent" + "Request audit access" CTAs.
   - **Sealed strategy panel:** show `strategyHash` (H) and `storageRoot` as ciphertext/hashes with a lock icon and the line "strategy sealed on 0G Storage".
-  - **Decision ledger (the core):** a virtualized table of `DecisionEntry` rows. Each row: index, time, decision (`UP/DOWN/FLAT` + conf + size), **green Accepted / red Rejected(reason)** pill, TEE signer (short), nonce/epoch, and a **ChainScan** link. Clicking a row opens the receipt detail (§6).
+  - **Decision ledger (the core):** a virtualized table of **accepted** `DecisionEntry` rows only — the real track record. Rejected/tamper rows are **not** stored on-chain, so they never appear here (Changelog Q1). Each row: entryIndex, time, decision (`UP/DOWN/FLAT` + conf + size), **green Accepted** pill, TEE signer (short), nonce/epoch, **ChainScan** link. Clicking a row opens the receipt detail (§6), resolved via `getEntry(txHash)`.
+  - **Provenance demo:** a small block linking to the green/red tamper pair on `/proof` (via `getShowcasePair()`), labeled "tamper test" — this is where red lives, not in the ledger.
   - **P&L context** (optional, clearly labeled "context, not verified").
   - **Verify strip:** the `pnpm fief-verify --tx <hash>` command for the latest accepted entry.
 - **Data:** `getAgent(tokenId)`, `getEntries(tokenId, { limit, cursor })` (paginated/infinite), `getListing(tokenId)`.
@@ -111,7 +123,7 @@ For each page: **route · goal · sections/components · data (from §7) · stat
 
 ### 5.5 Rent flow — `/agents/[tokenId]/rent`
 - **Goal:** rent an agent → receive its verified decision feed.
-- **Sections:** requires wallet (network guard); show terms (fee-per-decision, min escrow, expiry, max decisions); escrow amount input; confirm step; success state that links to the Renter Dashboard. **Do not** implement real transactions — call a mock `rent()` action that returns a `Grant`, and stub the wallet write behind the data layer so the owner swaps it in.
+- **Sections:** requires wallet (network guard); show terms — **fee-per-decision, min escrow, term length (`listing.termSeconds` → expiry = now + term), and max decisions = floor(escrow / feePerDecisionWei) computed live as the renter types** (Changelog Q3); escrow amount input; confirm step; success state that links to the Renter Dashboard. **Do not** implement real transactions — call a mock `rent()` action that returns a `Grant`, and stub the wallet write behind the data layer so the owner swaps it in.
 - **Data:** `getListing(tokenId)`, mock `rent()` → `Grant`.
 - **States:** wrong-network, insufficient-balance (mockable), pending, success, error.
 
@@ -162,9 +174,10 @@ export type RejectReason =
 export interface Decision { dir: Direction; conf: number; size: number } // conf,size in 0..1
 
 export interface DecisionEntry {
-  index: number;               // on-chain entry index for this agent
+  entryIndex: number | null;   // v1.1 — on-chain array index; null for rejected (never stored)
   status: DecisionStatus;      // green | red
   rejectReason?: RejectReason; // present iff status==='rejected'
+  isTamperTest?: boolean;      // v1.1 — rejected rows are deliberate tamper demos, not failed decisions
   decision: Decision;          // parsed from the signed response content
   nonce: number;
   epoch: number;
@@ -189,8 +202,8 @@ export interface Agent {
   storageRoot: `0x${string}`;  // 0G Storage merkle root of the AES-256-GCM blob
   network: 'mainnet' | 'testnet';
   domain: string;              // e.g. "BTC short-horizon direction"
-  decisionCount: number;
-  brainBoundPct: number;       // % accepted & provenance-verified (target 100)
+  decisionCount: number;       // v1.1 — accepted, stored entries only
+  verified: true;              // v1.1 — badge: every stored entry passed on-chain verification (I1). NO fraction.
   createdAt: string;
   pnlContext?: {               // context only — NEVER labeled as verified
     window: string;
@@ -203,6 +216,7 @@ export interface Listing {
   tokenId: string;
   feePerDecisionWei: string;   // bigint serialized as string
   minEscrowWei: string;
+  termSeconds: number;         // v1.1 — rental duration; expiry = rentedAt + termSeconds
   active: boolean;
 }
 
@@ -226,16 +240,19 @@ export interface RenterFeedMessage {
 export interface VerifyCheck { name: string; pass: boolean; detail?: string }
 export interface VerifyResult {
   txHash: `0x${string}`;
-  ok: boolean;
+  outcome: 'valid' | 'tampered' | 'not_found' | 'error'; // v1.1 — replaces `ok` (ok === outcome==='valid')
   network: 'mainnet' | 'testnet';
   checks: VerifyCheck[];       // e.g. "signer matches getService().teeSignerAddress", "commit matches", "nonce fresh"
   entry?: DecisionEntry;
+  error?: string;              // v1.1 — present iff outcome==='error'
 }
 
 export interface DataSource {
   listAgents(): Promise<Agent[]>;
   getAgent(tokenId: string): Promise<Agent | null>;
-  getEntries(tokenId: string, opts?: { limit?: number; cursor?: number }): Promise<DecisionEntry[]>;
+  getEntries(tokenId: string, opts?: { limit?: number; cursor?: number }): Promise<DecisionEntry[]>; // accepted-only
+  getEntry(txHash: string): Promise<DecisionEntry | null>;   // v1.1 — detail/deep-link resolves on txHash
+  getShowcasePair(): Promise<{ green: DecisionEntry; red: DecisionEntry } | null>; // v1.1 — landing + /proof
   getListing(tokenId: string): Promise<Listing | null>;
   getAgentsForOwner(address: `0x${string}`): Promise<Agent[]>;
   getGrantsForRenter(address: `0x${string}`): Promise<Grant[]>;
@@ -246,7 +263,7 @@ export interface DataSource {
 }
 ```
 
-**`getDataSource()`** returns `MockDataSource` when `NEXT_PUBLIC_DATA_MODE=mock` (default) and `LiveDataSource` when `live`. Build the mock now with **≥2 agents** and, for at least one agent, a ledger containing **both accepted and a rejected (`BadCommit`) entry**, plus realistic hashes/addresses and working `chainScanUrl`s. The rejected entry powers the Proof page and the receipt component.
+**`getDataSource()`** returns `MockDataSource` when `NEXT_PUBLIC_DATA_MODE=mock` (default) and `LiveDataSource` when `live`. Build the mock now with **≥2 agents** and an **accepted-only** ledger per agent, plus a separate **showcase pair** via `getShowcasePair()` = one accepted entry + one `BadCommit` rejected entry (`entryIndex: null`, `isTamperTest: true`), with realistic hashes/addresses and working `chainScanUrl`s. The showcase pair powers the Proof page + landing; the ledger powers the Agent Record.
 
 ---
 
@@ -282,6 +299,8 @@ ChainScan tx URL helper: `` `https://chainscan.0g.ai/tx/${txHash}` `` (mainnet).
 NEXT_PUBLIC_DATA_MODE=mock         # mock | live
 NEXT_PUBLIC_NETWORK=mainnet        # mainnet | testnet
 NEXT_PUBLIC_WALLETCONNECT_ID=      # only needed once wallet is wired
+NEXT_PUBLIC_GREEN_TX=              # canonical accepted demo tx — set at P4; getShowcasePair() reads it (Q4)
+NEXT_PUBLIC_RED_TX=                # canonical rejected/tamper demo tx — set at P4 (Q4)
 ```
 
 Mock mode requires **no keys**. Never commit a real `.env`.
