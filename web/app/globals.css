@@ -4,14 +4,39 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   Fief design tokens
+   ---------------------------------------------------------------------------
+   D1  Monochrome + green/red only. `accepted` and `rejected` are the ONLY
+       saturated colours in the product. Everything else is neutral.
+   D11 Green/red are reserved EXCLUSIVELY for provenance (Accepted/Rejected).
+       P&L, sparkline value lines and every chart render neutral grey, so a
+       rising P&L can never be mistaken for a verified claim.
+   D8  Colour is never the sole carrier of the Accepted/Rejected semantic.
+       See <StatusPill> / <DecisionReceipt>: icon + label + border weight +
+       fill density are all redundant encodings. Acceptance test: a greyscale
+       screenshot must still read correctly.
+   --------------------------------------------------------------------------- */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
   --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+
+  /* Semantic triads (plan §2.1). One token per semantic is insufficient:
+     light-mode --accepted on white is ~3:1 and fails AA for body text, so
+     each semantic gets a dedicated AA-compliant `-fg` role per theme. */
   --color-accepted: var(--accepted);
+  --color-accepted-fg: var(--accepted-fg);
+  --color-accepted-surface: var(--accepted-surface);
+  --color-accepted-border: var(--accepted-border);
   --color-rejected: var(--rejected);
+  --color-rejected-fg: var(--rejected-fg);
+  --color-rejected-surface: var(--rejected-surface);
+  --color-rejected-border: var(--rejected-border);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -28,6 +53,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -48,6 +74,10 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Fixed ledger row height — required by @tanstack/react-virtual (plan §2.2).
+     Detail is a route/sheet (D9), never an inline expand, so rows stay fixed. */
+  --spacing-row: 2.25rem;
 }
 
 :root {
@@ -62,18 +92,22 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.505 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
+  --border-strong: oklch(0.145 0 0 / 14%);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+
+  /* D11 — charts stay greyscale so they can never read as provenance. */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -83,8 +117,20 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Semantic triads — light. `--accepted` / `--rejected` keep their original
+     values for fills and strokes; `-fg` is darkened to reach AA on white.
+     Border alpha is 55% rather than 40%: composited over a white background,
+     40% measured 1.38:1 / 1.47:1 and failed the 1.5:1 non-text minimum.
+     Verify with `pnpm contrast`. */
   --accepted: oklch(0.627 0.194 149.2);
+  --accepted-fg: oklch(0.45 0.13 150);
+  --accepted-surface: oklch(0.627 0.194 149.2 / 10%);
+  --accepted-border: oklch(0.627 0.194 149.2 / 55%);
   --rejected: oklch(0.577 0.245 27.325);
+  --rejected-fg: oklch(0.45 0.19 26);
+  --rejected-surface: oklch(0.577 0.245 27.325 / 10%);
+  --rejected-border: oklch(0.577 0.245 27.325 / 55%);
 }
 
 .dark {
@@ -99,28 +145,45 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: oklch(0.715 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+
+  /* Raised from /10% — the scaffold value was too faint to delineate a
+     data-dense ledger (plan §2.2). */
+  --border: oklch(1 0 0 / 14%);
+  --border-strong: oklch(1 0 0 / 22%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  /* Was oklch(0.488 0.243 264.376) — a blue-violet leftover from the neutral
+     base and the only chromatic non-semantic colour in the file. Neutralised
+     to satisfy D1. */
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-border: oklch(1 0 0 / 14%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Semantic triads — dark. */
   --accepted: oklch(0.765 0.177 149.2);
+  --accepted-fg: oklch(0.83 0.17 150);
+  --accepted-surface: oklch(0.765 0.177 149.2 / 12%);
+  --accepted-border: oklch(0.765 0.177 149.2 / 45%);
   --rejected: oklch(0.704 0.191 22.216);
+  --rejected-fg: oklch(0.78 0.17 24);
+  --rejected-surface: oklch(0.704 0.191 22.216 / 12%);
+  --rejected-border: oklch(0.704 0.191 22.216 / 45%);
 }
 
 @layer base {
@@ -132,5 +195,53 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer utilities {
+  /* Tabular numerals. Applied to every numeric/hash cell so virtualized
+     ledger rows do not jitter as values change (plan §2.3). */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Mono eyebrow / section label (plan §2.3). */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Hero display type. */
+  .display {
+    font-size: clamp(2rem, 4.5vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  /* Oversized type for the projector-legible `showcase` receipt variant. */
+  .display-showcase {
+    font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+}
+
+/* Motion budget: every animation in the product must be gated on this.
+   Handoff §3 / §10 require reduced-motion support. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
