@@ -2,26 +2,28 @@
 
 import { getDataMode } from '@/lib/data/source';
 import { HONEST_STATUS } from '@/lib/copy';
-import { formatCount, formatPct } from '@/lib/format';
+import { formatCount } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
- * Honest-status badge — handoff §4, amended by D4.
+ * Honest-status badge — handoff §4, amended by D4 and v1.1 (Q1).
  *
- * Handoff §4 specifies the literal string
+ * Handoff §4 originally specified the literal string
  *   "Live on 0G mainnet · N decisions · 100% brain-bound"
  * but rendering that over MockDataSource — the default, and what anyone sees
  * before PRD phase P4 — is a false claim, and directly contradicts the honesty
  * discipline in the README and PRD §8. So the badge reads its own provenance:
  * it only claims live mainnet activity when NEXT_PUBLIC_DATA_MODE=live.
+ *
+ * v1.1 Q1 removed the percentage entirely. Every stored entry is provenance-
+ * verified by invariant I1, so a fraction is either always 100% — which reads as
+ * marketing — or misleading. The badge now says "N decisions · verified".
  */
 export function HonestStatusBadge({
   decisions,
-  brainBoundPct,
   className,
 }: {
   decisions?: number;
-  brainBoundPct?: number;
   className?: string;
 }) {
   const mode = getDataMode();
@@ -53,12 +55,8 @@ export function HonestStatusBadge({
               <span className="tnum">{formatCount(decisions)} decisions</span>
             </>
           ) : null}
-          {brainBoundPct !== undefined ? (
-            <>
-              <span aria-hidden>·</span>
-              <span className="tnum">{formatPct(brainBoundPct)}% brain-bound</span>
-            </>
-          ) : null}
+          <span aria-hidden>·</span>
+          <span>{HONEST_STATUS.verified}</span>
         </>
       ) : (
         <span>{HONEST_STATUS.mockPrimary}</span>

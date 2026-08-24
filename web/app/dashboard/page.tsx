@@ -8,11 +8,11 @@ export const metadata: Metadata = {
 
 export default function DashboardPage() {
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-4 py-10">
-      <header className="flex flex-col gap-3">
+    <main className="container-page flex flex-col gap-7 px-4 py-8 sm:px-6">
+      <header className="flex flex-col gap-2">
         <p className="eyebrow">Renter</p>
         <h1 className="display">Dashboard</h1>
-        <p className="text-muted-foreground max-w-2xl leading-relaxed">
+        <p className="page-lede max-w-2xl">
           Every decision you receive references its on-chain entry index, so you can confirm that
           what you paid for came from the agent you rented.
         </p>

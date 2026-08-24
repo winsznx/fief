@@ -6,9 +6,16 @@ export type RejectReason =
 export interface Decision { dir: Direction; conf: number; size: number } // conf,size in 0..1
 
 export interface DecisionEntry {
-  index: number;               // on-chain entry index for this agent
+  // v1.1 (Q1) — on-chain `entries[]` is ACCEPTED-ONLY: a rejected submission
+  // reverts, or emits a DecisionRejected event, and is never appended. So a
+  // rejected entry has no array index at all, hence null. Detail and deep-link
+  // routes therefore key on `txHash`, never on this.
+  entryIndex: number | null;
   status: DecisionStatus;      // green | red
   rejectReason?: RejectReason; // present iff status==='rejected'
+  // v1.1 (Q1) — a red entry is a DELIBERATE tamper demo, not a failed decision
+  // by the agent. Flagged so no surface can present it as part of a record.
+  isTamperTest?: boolean;
   decision: Decision;          // parsed from the signed response content
   nonce: number;
   epoch: number;
@@ -41,8 +48,17 @@ export interface Agent {
   storageRoot: `0x${string}`;  // 0G Storage merkle root of the AES-256-GCM blob
   network: 'mainnet' | 'testnet';
   domain: string;              // e.g. "BTC short-horizon direction"
-  decisionCount: number;
-  brainBoundPct: number;       // % accepted & provenance-verified (target 100)
+  decisionCount: number;       // v1.1 (Q1) — accepted, stored entries only
+  /**
+   * v1.1 (Q1) — badge only: every stored entry passed the on-chain check by
+   * invariant I1, so a fraction is either always 100% or actively misleading.
+   *
+   * Deliberately the LITERAL `true`, not `boolean` (D15): a percentage cannot
+   * be derived from `true`, so the type itself forbids a later "nicety" from
+   * reintroducing a fraction. If this ever needs to be false, the honest change
+   * is a new field describing what failed — not a ratio.
+   */
+  verified: true;
   createdAt: string;
   pnlContext?: {               // context only — NEVER labeled as verified
     window: string;
@@ -62,11 +78,12 @@ export interface Listing {
   minEscrowWei: string;
   active: boolean;
 
-  // ── v1.1 [4] ───────────────────────────────────────────────────────────
-  // §5.5 requires showing "expiry, max decisions" in the rent terms, but
-  // Listing carried neither, so the rent flow had no source for them.
-  termDays: number;
-  maxDecisions: number;
+  // ── v1.1 [4] / Q3 ─────────────────────────────────────────────────────
+  // Rental duration. At rent: expiry = now + termSeconds, and
+  // maxDecisions = floor(escrow / feePerDecisionWei) — DERIVED at rent time
+  // from the escrow the renter actually posts, so it is deliberately not a
+  // field here (PRD §5 RentalDesk.list(tokenId, fee, minEscrow, termSeconds)).
+  termSeconds: number;
 }
 
 export interface Grant {
@@ -94,15 +111,17 @@ export interface RenterFeedMessage {
 export interface VerifyCheck { name: string; pass: boolean; detail?: string }
 export interface VerifyResult {
   txHash: `0x${string}`;
-  ok: boolean;
   network: 'mainnet' | 'testnet';
   checks: VerifyCheck[];       // e.g. "signer matches getService().teeSignerAddress", "commit matches", "nonce fresh"
   entry?: DecisionEntry;
 
   // ── v1.1 [12] ──────────────────────────────────────────────────────────
-  // §5.8 requires distinct `not-found` and `error` states. Previously both
-  // collapsed into ok:false with an implicit "tx found" check.
+  // Replaces the previous `ok: boolean`, which was redundant (ok === valid) and
+  // could not express four states: §5.8 needs `not_found` and `error` to be
+  // distinguishable, and they previously collapsed into ok:false.
   outcome: VerifyOutcome;
+  /** v1.1 — present iff outcome === 'error'. */
+  error?: string;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -166,15 +185,28 @@ export interface TxResult {
   error?: string;
 }
 
-/** v1.1 [12] — §5.8 distinct result states. */
-export type VerifyOutcome = 'valid' | 'invalid' | 'not-found' | 'error';
+/**
+ * v1.1 [12] — §5.8 distinct result states.
+ *
+ * Note the snake_case `not_found`: it is the ratified spelling in the handoff
+ * §7 contract, so the wire shape matches what LiveDataSource will return.
+ */
+export type VerifyOutcome = 'valid' | 'tampered' | 'not_found' | 'error';
 
 /** v1.1 [13] — §5.1 / §5.2 canonical demo pair. */
 export interface ShowcasePair {
   green: DecisionEntry;
   red: DecisionEntry;
-  /** The agent whose ledger the pair belongs to. */
-  tokenId: string;
+  /**
+   * Attribution for the GREEN entry only — it is a real accepted ledger entry
+   * and belongs to an agent's record.
+   *
+   * Optional (D14) because the red half is a tamper test with no agent and no
+   * entryIndex, so the pair as a whole cannot be attributed to one record. In
+   * live mode the pair is resolved from NEXT_PUBLIC_GREEN_TX / _RED_TX, where
+   * the token may not be known at all.
+   */
+  tokenId?: string;
 }
 
 /** v1.1 [11] — §5.7 mint/seal form payload. */
@@ -195,14 +227,15 @@ export interface ResealInput {
 export interface ListingInput {
   feePerDecisionWei: string;
   minEscrowWei: string;
-  termDays: number;
-  maxDecisions: number;
+  /** v1.1 Q3 — rental duration. maxDecisions is derived at rent time, not set here. */
+  termSeconds: number;
   active: boolean;
 }
 
 export interface DataSource {
   listAgents(): Promise<Agent[]>;
   getAgent(tokenId: string): Promise<Agent | null>;
+  /** v1.1 (Q1) — accepted entries only. Rejected submissions are never stored. */
   getEntries(tokenId: string, opts?: { limit?: number; cursor?: number }): Promise<DecisionEntry[]>;
   getListing(tokenId: string): Promise<Listing | null>;
   getAgentsForOwner(address: `0x${string}`): Promise<Agent[]>;
@@ -213,10 +246,17 @@ export interface DataSource {
   rent(tokenId: string, escrowWei: string): Promise<Grant>;
 
   // ── v1.1 additions ─────────────────────────────────────────────────────
-  /** [1] §5.4 row → detail. Required by /agents/[tokenId]/entries/[index]. */
-  getEntry(tokenId: string, index: number): Promise<DecisionEntry | null>;
-  /** [2] paginated form of getEntries. getEntries above is unchanged. */
+  /**
+   * [1] §5.4 row → detail, keyed on txHash (v1.1 Q1).
+   *
+   * Not (tokenId, index): a rejected entry has no index, and the tx hash is the
+   * only identifier that is stable across accepted entries, tamper tests and a
+   * link someone pastes to an auditor.
+   */
+  getEntry(txHash: string): Promise<DecisionEntry | null>;
+  /** [2] paginated form of getEntries. Accepted-only, same as getEntries. */
   getEntriesPage(tokenId: string, opts?: { limit?: number; cursor?: number }): Promise<EntriesPage>;
+
   /** [6] §5.7 settlement view. */
   getSettlements(tokenId: string): Promise<Settlement[]>;
   /** [7] §5.7 audit-grant management. */
@@ -226,8 +266,9 @@ export interface DataSource {
    *
    * Exists so the landing and proof pages read through the DataSource rather
    * than importing fixtures directly — otherwise they would not switch over
-   * when LiveDataSource lands. In live mode this resolves two configured
-   * transaction hashes.
+   * when LiveDataSource lands. In live mode this resolves the two configured
+   * transaction hashes NEXT_PUBLIC_GREEN_TX / NEXT_PUBLIC_RED_TX (v1.1 Q4), so
+   * pinning the demo pair at P4 needs no frontend change.
    */
   getShowcasePair(): Promise<ShowcasePair | null>;
   /** [8] optional status callback — additive, existing 2-arg calls still compile. */

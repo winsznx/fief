@@ -2,12 +2,19 @@ import { notFound } from 'next/navigation';
 import { DecisionReceipt, DecisionReceiptRow, LedgerHeader } from '@/components/fief/decision-receipt';
 import { Hash, HashRow } from '@/components/fief/hash';
 import { HonestStatusBadge } from '@/components/fief/honest-status-badge';
+import { PnlContext } from '@/components/fief/pnl-context';
 import { CardGridSkeleton, EmptyState, ErrorState, LedgerSkeleton } from '@/components/fief/states';
 import { StatusPill } from '@/components/fief/status-pill';
 import { VerifyCommand } from '@/components/fief/verify-command';
 import { Button } from '@/components/ui/button';
-import { getEntriesFor, getShowcasePair, MOCK_OWNER } from '@/lib/data/fixtures';
-import type { RejectReason } from '@/lib/data/types';
+import {
+  getAgents,
+  getEntriesFor,
+  getShowcasePair,
+  getTamperTests,
+  MOCK_OWNER,
+} from '@/lib/data/fixtures';
+import type { Agent, RejectReason } from '@/lib/data/types';
 
 /**
  * Dev-only design gallery (plan T11).
@@ -66,14 +73,31 @@ export default function DesignPage() {
   if (process.env.NODE_ENV === 'production') notFound();
 
   const { green, red } = getShowcasePair();
-  const ledger = getEntriesFor('2').slice(0, 10);
+  const ledger = getEntriesFor('2').slice(0, 6);
+  const tamperTests = getTamperTests();
+
+  // D16: PnlContext returns null without a series, so the gallery supplies an
+  // explicitly synthetic one. Labelled as a sample directly below the chart —
+  // fabricated performance must never be attributable to a real agent.
+  const baseAgent = getAgents()[0];
+  const illustrativeAgent: Agent = {
+    ...baseAgent,
+    pnlContext: {
+      window: '7d',
+      note: 'context — provenance only, not verified',
+      series: [0, 1.2, 0.8, 2.1, 1.6, 2.8, 2.2, 3.4].map((v, i) => ({
+        t: `2026-08-${String(13 + i).padStart(2, '0')}T00:00:00.000Z`,
+        v,
+      })),
+    },
+  };
 
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-14 px-4 py-10">
+    <main className="container-page flex flex-col gap-14 px-4 py-10">
       <header className="flex flex-col gap-3">
         <p className="eyebrow">Dev only · /design</p>
         <h1 className="display">Design system</h1>
-        <p className="text-muted-foreground max-w-2xl leading-relaxed">
+        <p className="page-lede max-w-2xl">
           Foundation review surface. Toggle the theme in the top nav to check both. Desaturate a
           screenshot of the receipt section to confirm the Accepted/Rejected distinction survives
           greyscale — that is the acceptance test for redundant encoding.
@@ -112,7 +136,7 @@ export default function DesignPage() {
           <p className="eyebrow">eyebrow · mono 11px · 0.18em tracking</p>
           <p className="display">Display — hero</p>
           <p className="display-showcase">Display showcase — projector scale</p>
-          <h3 className="text-xl font-semibold tracking-tight">Heading — sans 600</h3>
+          <h3 className="heading text-xl">Heading — sans 600</h3>
           <p className="max-w-2xl leading-relaxed">
             Body copy at 15px. Fief proves provenance, not profitability.
           </p>
@@ -152,9 +176,12 @@ export default function DesignPage() {
         <VerifyCommand txHash={green.txHash} className="max-w-xl" />
       </Section>
 
-      <Section title="Honest status badge" note="Reads its own provenance. In mock mode it refuses to claim live mainnet activity.">
+      <Section
+        title="Honest status badge"
+        note="Reads its own provenance. In mock mode it refuses to claim live mainnet activity. No percentage — v1.1 Q1 replaced the fraction with a verified state."
+      >
         <div className="flex flex-wrap gap-3">
-          <HonestStatusBadge decisions={2400} brainBoundPct={99.96} />
+          <HonestStatusBadge decisions={2400} />
         </div>
       </Section>
 
@@ -175,13 +202,31 @@ export default function DesignPage() {
         </div>
       </Section>
 
-      <Section title="Decision receipt — compact rows" note="Fixed row height for virtualization. Rejected rows carry a left rule as a non-colour cue.">
+      <Section
+        title="Decision receipt — compact rows"
+        note="Fixed row height for virtualization. An agent's ledger is accepted-only (v1.1 Q1); the tamper-test rows below are shown together with it only here, so the left-rule non-colour cue stays reviewable."
+      >
         <div className="border-border-strong overflow-hidden rounded-md border">
           <LedgerHeader />
           {ledger.map((e) => (
-            <DecisionReceiptRow key={e.index} entry={e} tokenId="2" />
+            <DecisionReceiptRow key={e.txHash} entry={e} tokenId="2" />
+          ))}
+          {tamperTests.map((e) => (
+            <DecisionReceiptRow key={e.txHash} entry={e} tokenId="2" />
           ))}
         </div>
+      </Section>
+
+      <Section
+        title="P&L context"
+        note="D16 — renders null when an agent has no series, so no hollow box appears on every agent page. The series below is explicitly synthetic."
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <PnlContext agent={illustrativeAgent} />
+        </div>
+        <p className="text-muted-foreground text-xs">
+          illustrative sample — not agent data
+        </p>
       </Section>
 
       <Section title="States">

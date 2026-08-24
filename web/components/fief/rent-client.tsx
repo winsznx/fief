@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useListing, useRent } from '@/lib/data/queries';
 import type { Agent, Grant } from '@/lib/data/types';
-import { formatCount, formatOg, formatRelativeExpiry } from '@/lib/format';
+import { formatCount, formatDuration, formatOg, formatRelativeExpiry } from '@/lib/format';
 import { ErrorState } from './states';
 import { WalletGate } from './wallet-gate';
 
@@ -89,15 +89,22 @@ function RentForm({ agent }: { agent: Agent }) {
   }
 
   const minEscrow = BigInt(listing.minEscrowWei);
+  const feePerDecision = BigInt(listing.feePerDecisionWei);
   const belowMin = parsed !== null && parsed < minEscrow;
   const insufficient = parsed !== null && parsed > MOCK_BALANCE_WEI;
   const invalid = amount.trim() !== '' && parsed === null;
   const canSubmit = parsed !== null && !belowMin && !insufficient && !rent.isPending;
 
+  // v1.1 Q3 — derived client-side AS THE RENTER TYPES, mirroring what
+  // RentalDesk.rent computes on-chain (maxDecisions = msg.value / fee). It is
+  // not a listing field, because it depends on the escrow actually posted.
+  const derivedMaxDecisions =
+    parsed === null || feePerDecision === 0n ? null : Number(parsed / feePerDecision);
+
   /* ── Success ─────────────────────────────────────────────────────────── */
   if (grant) {
     return (
-      <section className="border-accepted-border bg-accepted-surface flex flex-col gap-4 rounded-lg border p-6">
+      <section className="surface border-l-accepted flex flex-col gap-4 border-l-2 p-6">
         <h2 className="text-accepted-fg flex items-center gap-2 text-lg font-semibold tracking-tight">
           <CheckCircle2 className="size-5 shrink-0" aria-hidden />
           Rental active
@@ -130,13 +137,12 @@ function RentForm({ agent }: { agent: Agent }) {
   /* ── Form ────────────────────────────────────────────────────────────── */
   return (
     <div className="flex flex-col gap-6">
-      <section className="border-border-strong flex flex-col gap-4 rounded-lg border p-5">
+      <section className="surface flex flex-col gap-4 p-5">
         <h2 className="text-sm font-semibold tracking-tight">Terms</h2>
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-4 sm:grid-cols-3">
           <Term label="Fee / decision" value={`${formatOg(listing.feePerDecisionWei)} OG`} />
           <Term label="Minimum escrow" value={`${formatOg(listing.minEscrowWei)} OG`} />
-          <Term label="Max decisions" value={formatCount(listing.maxDecisions)} />
-          <Term label="Term" value={`${listing.termDays} days`} />
+          <Term label="Term" value={formatDuration(listing.termSeconds)} />
         </dl>
         <p className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
           <Info className="mt-0.5 size-3 shrink-0" aria-hidden />
@@ -146,7 +152,7 @@ function RentForm({ agent }: { agent: Agent }) {
         </p>
       </section>
 
-      <section className="border-border-strong flex flex-col gap-4 rounded-lg border p-5">
+      <section className="surface flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-2">
           <Label htmlFor="escrow">Escrow amount (OG)</Label>
           <Input
@@ -162,13 +168,6 @@ function RentForm({ agent }: { agent: Agent }) {
           />
           <p id="escrow-help" className="text-muted-foreground text-xs">
             Mock balance: <span className="tnum font-mono">{formatOg(MOCK_BALANCE_WEI.toString())} OG</span>.
-            At {formatOg(listing.feePerDecisionWei)} OG per decision, this escrow covers{' '}
-            <span className="tnum font-mono">
-              {parsed === null
-                ? '—'
-                : formatCount(Number(parsed / BigInt(listing.feePerDecisionWei)))}
-            </span>{' '}
-            decisions.
           </p>
 
           <p id="escrow-error" role="alert" className="text-rejected-fg min-h-4 text-xs">
@@ -179,6 +178,28 @@ function RentForm({ agent }: { agent: Agent }) {
             {insufficient ? 'Insufficient balance for this escrow amount.' : null}
           </p>
         </div>
+
+        {/* What this escrow buys, recomputed on every keystroke and shown BEFORE
+            confirm (handoff §5.5 / v1.1 Q3). Both values are derived exactly as
+            the contract derives them, so the renter is not asked to confirm a
+            term they have to infer. */}
+        <dl
+          aria-live="polite"
+          className="border-border-strong bg-muted/30 grid gap-4 rounded-md border p-4 sm:grid-cols-2"
+        >
+          <Term
+            label="Max decisions"
+            value={
+              derivedMaxDecisions === null ? '—' : formatCount(derivedMaxDecisions)
+            }
+            hint={`escrow ÷ ${formatOg(listing.feePerDecisionWei)} OG per decision`}
+          />
+          <Term
+            label="Expires"
+            value={formatDuration(listing.termSeconds)}
+            hint="counted from when the transaction lands, not from now"
+          />
+        </dl>
 
         {rent.isError ? (
           <ErrorState
@@ -200,11 +221,11 @@ function RentForm({ agent }: { agent: Agent }) {
           <Button asChild variant="ghost" size="sm">
             <Link href={`/agents/${agent.tokenId}`}>Cancel</Link>
           </Button>
-          {/* The term is stated in days rather than an absolute timestamp: the
-              expiry is set when the transaction lands, not when this page
-              renders, so a rendered clock time would be misleading. */}
+          {/* The term is stated as a duration rather than an absolute
+              timestamp: the expiry is set when the transaction lands, not when
+              this page renders, so a rendered clock time would be misleading. */}
           <span className="text-muted-foreground ml-auto font-mono text-[0.6875rem]">
-            expires {listing.termDays} days after confirmation
+            expires {formatDuration(listing.termSeconds)} after confirmation
           </span>
         </div>
       </section>
@@ -212,11 +233,12 @@ function RentForm({ agent }: { agent: Agent }) {
   );
 }
 
-function Term({ label, value }: { label: string; value: string }) {
+function Term({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="eyebrow">{label}</dt>
       <dd className="tnum font-mono text-sm">{value}</dd>
+      {hint ? <p className="text-muted-foreground text-[0.6875rem]">{hint}</p> : null}
     </div>
   );
 }

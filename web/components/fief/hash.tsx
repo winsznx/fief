@@ -72,11 +72,19 @@ export function HashRow({
   chars?: number;
   hint?: string;
 }) {
+  /* Geometry matched to the reference's KeyValue row: py-1.5, a 10px label at
+     0.16em, a 13px mono value, and NO divider. A stack of seven of these was
+     previously rendering at ~50px per row because each carried a hairline rule
+     and a full-size copy button — 350px of card spent on six hashes. The rows
+     are already alternating label/value in two type families, which separates
+     them perfectly well without drawing a line under each one. */
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-1.5">
-      <span className="eyebrow shrink-0">{label}</span>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 py-1.5">
+      <span className="text-muted-foreground shrink-0 text-[0.625rem] font-medium tracking-[0.16em] uppercase">
+        {label}
+      </span>
       <span className="flex items-center gap-2">
-        {hint ? <span className="text-muted-foreground text-xs">{hint}</span> : null}
+        {hint ? <span className="text-muted-foreground text-[0.75rem]">{hint}</span> : null}
         <Hash value={value} chars={chars} label={label} href={href} />
       </span>
     </div>

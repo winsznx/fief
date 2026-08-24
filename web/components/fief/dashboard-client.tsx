@@ -226,7 +226,10 @@ function Feed({ tokenId }: { tokenId: string }) {
           {messages.map((m, i) => (
             <li key={`${m.txHash}-${m.at}-${i}`}>
               <Link
-                href={`/agents/${m.tokenId}/entries/${m.entryIndex}`}
+                // Deep-linked on txHash (v1.1 Q1), which RenterFeedMessage
+                // already carries. The visible label stays the entry index,
+                // because that is what the renter sees in the ledger.
+                href={`/agents/${m.tokenId}/entries/${m.txHash}`}
                 className="hover:bg-muted/50 focus-visible:ring-ring/60 grid grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-2.5 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
               >
                 <span className="tnum text-muted-foreground font-mono text-xs">

@@ -1,4 +1,4 @@
-import { CHAIN_SCAN_TX } from '@/lib/chain/zerog';
+import { CHAIN_SCAN_TX, isTxHash } from '@/lib/chain/zerog';
 import { ZERO_ADDRESS } from './commit';
 import {
   MOCK_OPERATOR,
@@ -11,6 +11,7 @@ import {
   getRespDataFor,
   getSettlements,
   getShowcasePair,
+  getTamperTests,
 } from './fixtures';
 import type {
   DataSource,
@@ -47,11 +48,11 @@ function ok(seed: string): TxResult {
 }
 
 /** Attaches the public respData bytes an entry detail view needs. */
-function withRespData(tokenId: string, entry: DecisionEntry): DecisionEntry {
+function withRespData(entry: DecisionEntry, tokenId?: string): DecisionEntry {
   // Always via getRespDataFor: it keeps the canonical green/red pair
   // byte-identical apart from the tampered byte, so /proof, /verify and the
   // entry detail route never disagree about the same transaction's bytes.
-  return { ...entry, ...getRespDataFor(tokenId, entry) };
+  return { ...entry, ...getRespDataFor(entry, tokenId) };
 }
 
 /** Named checks mirroring the real on-chain verification order (PRD §5). */
@@ -96,12 +97,25 @@ function checksFor(entry: DecisionEntry): VerifyCheck[] {
   ];
 }
 
-function findEntryByTx(txHash: string): { tokenId: string; entry: DecisionEntry } | null {
+/**
+ * Resolves a tx hash across BOTH the accepted ledgers and the tamper tests.
+ *
+ * Tamper tests are searched too (D13) so a hand-crafted or shared URL renders
+ * the receipt it names instead of 404ing — the /proof and /verify surfaces link
+ * to them by hash. `tokenId` is undefined for a tamper test: it belongs to no
+ * record.
+ */
+function findEntryByTx(txHash: string): { tokenId?: string; entry: DecisionEntry } | null {
   const needle = txHash.toLowerCase();
+
   for (const agent of getAgents()) {
     const found = getEntriesFor(agent.tokenId).find((e) => e.txHash.toLowerCase() === needle);
     if (found) return { tokenId: agent.tokenId, entry: found };
   }
+
+  const tamper = getTamperTests().find((e) => e.txHash.toLowerCase() === needle);
+  if (tamper) return { entry: tamper };
+
   return null;
 }
 
@@ -115,6 +129,10 @@ export const mockDataSource: DataSource = {
   },
 
   async getEntries(tokenId, opts) {
+    // Already accepted-only in the fixture (v1.1 Q1). No filter is applied here
+    // precisely so a rejected entry appearing in a ledger would be a fixture
+    // bug rather than something silently hidden at the boundary; the invariant
+    // is asserted in fixtures.test.ts.
     const all = getEntriesFor(tokenId);
     const cursor = opts?.cursor ?? 0;
     const limit = opts?.limit ?? 50;
@@ -134,9 +152,9 @@ export const mockDataSource: DataSource = {
     });
   },
 
-  async getEntry(tokenId, index) {
-    const found = getEntriesFor(tokenId).find((e) => e.index === index);
-    return delay(found ? withRespData(tokenId, found) : null);
+  async getEntry(txHash) {
+    const hit = findEntryByTx(txHash);
+    return delay(hit ? withRespData(hit.entry, hit.tokenId) : null);
   },
 
   async getListing(tokenId) {
@@ -171,7 +189,14 @@ export const mockDataSource: DataSource = {
   },
 
   subscribeRenterFeedWithStatus(tokenId, onMessage, onStatus) {
-    const accepted = getEntriesFor(tokenId).filter((e) => e.status === 'accepted');
+    // The feed replays the agent's stored entries, which are accepted-only
+    // (v1.1 Q1) — a renter is never billed for, or notified of, a rejection.
+    // The entryIndex narrowing is what makes the feed message type honest:
+    // RenterFeedMessage.entryIndex is a plain number because every message
+    // refers to an entry that really is in the on-chain array.
+    const accepted = getEntriesFor(tokenId).filter(
+      (e): e is DecisionEntry & { entryIndex: number } => e.entryIndex !== null,
+    );
     let i = 0;
     let cancelled = false;
 
@@ -186,7 +211,7 @@ export const mockDataSource: DataSource = {
       const e = accepted[i % Math.max(accepted.length, 1)];
       if (!e) return;
       const msg: RenterFeedMessage = {
-        entryIndex: e.index,
+        entryIndex: e.entryIndex,
         tokenId,
         decision: e.decision,
         at: new Date().toISOString(),
@@ -207,11 +232,13 @@ export const mockDataSource: DataSource = {
   async verifyTx(txHash) {
     const normalized = txHash.trim();
 
-    if (!/^0x[0-9a-fA-F]{64}$/.test(normalized)) {
+    if (!isTxHash(normalized)) {
       const bad: VerifyResult = {
         txHash: (normalized.startsWith('0x') ? normalized : `0x${normalized}`) as `0x${string}`,
-        ok: false,
         outcome: 'error',
+        // v1.1: `error` is populated iff outcome === 'error', so the UI has a
+        // message to show without mining it out of the checks array.
+        error: 'expected 0x followed by 64 hex characters',
         network: 'mainnet',
         checks: [
           {
@@ -228,8 +255,7 @@ export const mockDataSource: DataSource = {
     if (!hit) {
       const missing: VerifyResult = {
         txHash: normalized as `0x${string}`,
-        ok: false,
-        outcome: 'not-found',
+        outcome: 'not_found',
         network: 'mainnet',
         checks: [
           { name: 'transaction found on 0G mainnet', pass: false, detail: 'no record entry at this hash' },
@@ -238,12 +264,13 @@ export const mockDataSource: DataSource = {
       return delay(missing);
     }
 
-    const entry = withRespData(hit.tokenId, hit.entry);
-    const accepted = entry.status === 'accepted';
+    const entry = withRespData(hit.entry, hit.tokenId);
     return delay({
       txHash: entry.txHash,
-      ok: accepted,
-      outcome: accepted ? 'valid' : 'invalid',
+      // 'tampered' rather than 'invalid': the transaction and its signature are
+      // real, and what failed is the on-chain provenance check. Every red entry
+      // reachable here is a deliberate tamper test (v1.1 Q1).
+      outcome: entry.status === 'accepted' ? 'valid' : 'tampered',
       network: 'mainnet',
       entry,
       checks: checksFor(entry),
@@ -252,12 +279,20 @@ export const mockDataSource: DataSource = {
 
   async rent(tokenId, escrowWei) {
     const listing = getListings().find((l) => l.tokenId === tokenId);
-    const termDays = listing?.termDays ?? 30;
+    // v1.1 Q3 — both terms are DERIVED at rent time, matching what
+    // RentalDesk.rent computes on-chain:
+    //   expiry       = block.timestamp + termSeconds
+    //   maxDecisions = msg.value / feePerDecisionWei
+    const termSeconds = listing?.termSeconds ?? 30 * 86_400;
+    const fee = BigInt(listing?.feePerDecisionWei ?? '0');
+    const escrow = BigInt(escrowWei);
+    const maxDecisions = fee === 0n ? 0 : Number(escrow / fee);
+
     const grant: Grant = {
       tokenId,
       renter: MOCK_RENTER,
-      expiry: new Date(Date.now() + termDays * 86_400_000).toISOString(),
-      maxDecisions: listing?.maxDecisions ?? 200,
+      expiry: new Date(Date.now() + termSeconds * 1000).toISOString(),
+      maxDecisions,
       decisionsUsed: 0,
       remainingEscrowWei: escrowWei,
       status: 'active',

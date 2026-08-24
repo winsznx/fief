@@ -1,13 +1,14 @@
 'use client';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LedgerSkeleton, ErrorState, EmptyState } from '@/components/fief/states';
 import { Button } from '@/components/ui/button';
 import { useEntriesPage } from '@/lib/data/queries';
 import type { DecisionEntry } from '@/lib/data/types';
-import { formatCount, formatTimeShort, formatUnit } from '@/lib/format';
+import { formatCount, formatTimeShort, formatUnit, truncateHex } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { StatusPill } from './status-pill';
 
@@ -18,13 +19,28 @@ import { StatusPill } from './status-pill';
  * `h-row`) because the detail view is a route + sheet (D9) rather than an
  * inline expand, which keeps virtualization measurement trivial.
  *
+ * ACCEPTED-ONLY (v1.1 Q1). On-chain `entries[]` never holds a rejection, so
+ * there is no rejected-row state here at all — the green/red tamper pair lives
+ * on /proof, linked from the record's provenance-demo block. That is why rows
+ * carry no reject-reason column and no left-rule branch.
+ *
+ * Columns are the §5.4 set: entryIndex, time, decision, Accepted pill, TEE
+ * signer (short), nonce/epoch, ChainScan link.
+ *
  * Keyboard: ArrowUp/ArrowDown move the active row, Home/End jump, Enter opens.
  * The active row is scrolled into view through the virtualizer so keyboard
  * traversal works across all 10k rows, not just the rendered window.
  */
 
 const ROW_PX = 36; // must match --spacing-row (2.25rem)
-const COLS = 'grid-cols-[3.5rem_9.5rem_minmax(0,1fr)_auto]';
+
+/**
+ * One grid template for the header and every row, so they cannot drift apart.
+ * The signer and nonce/epoch columns are hidden below `lg` rather than allowed
+ * to wrap: a fixed row height is a hard constraint of virtualization.
+ */
+const COLS =
+  'grid-cols-[3.5rem_8.5rem_minmax(0,1fr)_auto] lg:grid-cols-[3.5rem_8.5rem_minmax(0,1fr)_7.5rem_6.5rem_auto_1.75rem]';
 
 export function DecisionLedger({ tokenId }: { tokenId: string }) {
   const query = useEntriesPage(tokenId);
@@ -66,7 +82,8 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
   const open = useCallback(
     (index: number) => {
       const entry = entries[index];
-      if (entry) router.push(`/agents/${tokenId}/entries/${entry.index}`);
+      // Deep-linked on txHash (v1.1 Q1), not on the array index.
+      if (entry) router.push(`/agents/${tokenId}/entries/${entry.txHash}`);
     },
     [entries, router, tokenId],
   );
@@ -168,7 +185,13 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
           <span className="eyebrow">#</span>
           <span className="eyebrow">Time (UTC)</span>
           <span className="eyebrow">Decision</span>
+          <span className="eyebrow hidden lg:block">TEE signer</span>
+          <span className="eyebrow hidden lg:block">Nonce / epoch</span>
           <span className="eyebrow text-right">Provenance</span>
+          <span className="eyebrow hidden text-right lg:block">
+            <span className="sr-only">ChainScan</span>
+            <span aria-hidden>↗</span>
+          </span>
         </div>
 
         <div
@@ -184,12 +207,14 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
             {items.map((v) => {
               const entry = entries[v.index];
               if (!entry) return null;
-              const accepted = entry.status === 'accepted';
               return (
                 <div
                   key={v.key}
                   role="row"
-                  aria-rowindex={entry.index + 1}
+                  // entryIndex is the on-chain array position; aria-rowindex is
+                  // 1-based. Ledger entries always carry one (v1.1 Q1), so the
+                  // fallback is only for type-narrowing.
+                  aria-rowindex={(entry.entryIndex ?? v.index) + 1}
                   aria-selected={active === v.index}
                   onClick={() => {
                     setActive(v.index);
@@ -198,18 +223,13 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
                   className={cn(
                     'border-border absolute top-0 left-0 grid w-full cursor-pointer items-center gap-4 border-b px-3',
                     COLS,
-                    // Non-colour cue for rejected rows, so the pattern is
-                    // findable when scanning in greyscale.
-                    accepted
-                      ? 'border-l-2 border-l-transparent'
-                      : 'border-l-rejected bg-rejected-surface/40 border-l-2',
                     active === v.index && 'bg-muted',
                     'hover:bg-muted/60',
                   )}
                   style={{ height: v.size, transform: `translateY(${v.start}px)` }}
                 >
                   <span className="tnum text-muted-foreground font-mono text-xs">
-                    {entry.index}
+                    {entry.entryIndex}
                   </span>
                   <span className="tnum text-muted-foreground font-mono text-xs">
                     {formatTimeShort(entry.blockTime)}
@@ -221,13 +241,32 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
                       {formatUnit(entry.decision.size)}
                     </span>
                   </span>
-                  <span className="flex justify-end">
-                    <StatusPill
-                      status={entry.status}
-                      rejectReason={entry.rejectReason}
-                      size="sm"
-                    />
+                  <span
+                    className="tnum text-muted-foreground hidden truncate font-mono text-xs lg:block"
+                    title={entry.teeSigner}
+                  >
+                    {truncateHex(entry.teeSigner, 4)}
                   </span>
+                  <span className="tnum text-muted-foreground hidden font-mono text-xs lg:block">
+                    {entry.nonce} / {entry.epoch}
+                  </span>
+                  <span className="flex justify-end">
+                    <StatusPill status={entry.status} size="sm" />
+                  </span>
+                  {/* stopPropagation: the row opens the receipt, this opens the
+                      explorer, and a click must do exactly one of them. */}
+                  <a
+                    href={entry.chainScanUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 hidden justify-self-end rounded-sm p-1 focus-visible:ring-2 focus-visible:outline-none lg:block"
+                  >
+                    <ExternalLink className="size-3.5" aria-hidden />
+                    <span className="sr-only">
+                      View entry {entry.entryIndex} on ChainScan (opens in a new tab)
+                    </span>
+                  </a>
                 </div>
               );
             })}

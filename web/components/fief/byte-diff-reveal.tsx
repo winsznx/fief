@@ -1,8 +1,3 @@
-'use client';
-
-import { ChevronDown } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { firstDiffIndex } from '@/lib/data/commit';
 import type { DecisionEntry } from '@/lib/data/types';
 import { cn } from '@/lib/utils';
@@ -20,11 +15,19 @@ import { cn } from '@/lib/utils';
  * line this project sets for itself. This only visualises a difference that
  * genuinely exists in the data.
  *
- * Collapsed by default and fully readable collapsed, so it degrades to a static
- * artifact for screenshots, print and reduced-motion users.
+ * ALWAYS VISIBLE. This was previously collapsed behind a "Show the bytes"
+ * button, which meant the single most valuable thing on the landing page — live
+ * cryptographic evidence that nobody else can show — was hidden by default while
+ * twelve rows of hash were dumped in full above it. That is exactly backwards.
+ * The diff is now the page's visual anchor and the hashes are what collapse.
+ *
+ * A server component: no state, no hydration, and it renders identically in a
+ * screenshot, in print and with JavaScript off.
  */
 
-const CONTEXT = 46;
+/* Wider window than before: this is now a full-width feature rather than a
+   cramped disclosure, so there is room for real surrounding context. */
+const CONTEXT = 64;
 
 interface Slice {
   before: string;
@@ -55,13 +58,13 @@ function ByteRow({
     <div className="flex flex-col gap-1">
       <span
         className={cn(
-          'eyebrow',
+          'text-[0.625rem] font-medium tracking-[0.16em] uppercase',
           tone === 'accepted' ? 'text-accepted-fg' : 'text-rejected-fg',
         )}
       >
         {label}
       </span>
-      <p className="tnum overflow-x-auto font-mono text-xs leading-relaxed whitespace-pre">
+      <p className="tnum overflow-x-auto font-mono text-[0.8125rem] leading-relaxed whitespace-pre">
         <span className="text-muted-foreground">{slice.before}</span>
         <mark
           className={cn(
@@ -90,66 +93,44 @@ export function ByteDiffReveal({
   red: DecisionEntry;
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const a = green.respData;
+  const b = red.respData;
+  if (!a || !b) return null;
+  const index = firstDiffIndex(a, b);
+  if (index < 0) return null;
 
-  const diff = useMemo(() => {
-    const a = green.respData;
-    const b = red.respData;
-    if (!a || !b) return null;
-    const index = firstDiffIndex(a, b);
-    if (index < 0) return null;
-    return {
-      index,
-      greenSlice: sliceAround(a, index),
-      redSlice: sliceAround(b, index),
-      total: a.length,
-    };
-  }, [green.respData, red.respData]);
-
-  if (!diff) return null;
+  const diff = {
+    index,
+    greenSlice: sliceAround(a, index),
+    redSlice: sliceAround(b, index),
+    total: a.length,
+  };
 
   return (
     <section
-      className={cn('border-border-strong flex flex-col gap-4 rounded-lg border p-5', className)}
+      className={cn('surface flex flex-col gap-item p-5 sm:p-6', className)}
       aria-label="Byte-level difference between the accepted and rejected submissions"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-semibold tracking-tight">The tampered byte</h3>
-          <p className="text-muted-foreground max-w-xl text-sm leading-relaxed">
-            Both submissions are {diff.total} bytes of signed response. They differ at exactly one
-            position — byte{' '}
-            <span className="tnum text-foreground font-mono">{diff.index}</span>, inside the
-            commitment&rsquo;s <code className="font-mono">strategy</code> field. That single byte is
-            why one was accepted and the other rejected.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="shrink-0"
-        >
-          {open ? 'Hide bytes' : 'Show the bytes'}
-          <ChevronDown
-            className={cn('size-3.5 transition-transform', open && 'rotate-180')}
-            aria-hidden
-          />
-        </Button>
+      {/* The figure leads. One number is the whole story: of N bytes, exactly one
+          differs, and that is the difference between a record and a rejection. */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="figure">byte {diff.index}</span>
+        <span className="text-muted-foreground text-[0.8125rem]">
+          of {diff.total} — the only difference between the two submissions
+        </span>
       </div>
 
-      {open ? (
-        <div className="border-border bg-muted/30 flex flex-col gap-4 rounded-md border p-4">
-          <ByteRow label="Accepted submission" slice={diff.greenSlice} tone="accepted" />
-          <ByteRow label="Tampered submission" slice={diff.redSlice} tone="rejected" />
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            The contract rebuilds the expected commitment from its own on-chain state and compares
-            it byte-for-byte against the response. A single altered character no longer matches, so
-            the entry is rejected with <code className="font-mono">BadCommit</code>.
-          </p>
-        </div>
-      ) : null}
+      <div className="surface-flat flex flex-col gap-4 p-4">
+        <ByteRow label="Accepted" slice={diff.greenSlice} tone="accepted" />
+        <ByteRow label="Rejected" slice={diff.redSlice} tone="rejected" />
+      </div>
+
+      <p className="text-muted-foreground max-w-[68ch] text-[0.8125rem] leading-relaxed">
+        The contract rebuilds the expected commitment from its own on-chain state and compares it
+        byte-for-byte against the response. One altered character no longer matches, so the entry is
+        refused with <code className="text-foreground font-mono">BadCommit</code> and is never
+        stored.
+      </p>
     </section>
   );
 }

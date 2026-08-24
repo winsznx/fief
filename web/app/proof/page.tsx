@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ByteDiffReveal } from '@/components/fief/byte-diff-reveal';
 import { DecisionReceipt } from '@/components/fief/decision-receipt';
-import { HonestStatusBadge } from '@/components/fief/honest-status-badge';
 import { VerifyCommand } from '@/components/fief/verify-command';
 import { Button } from '@/components/ui/button';
 import { APPROVED, LIMITS } from '@/lib/copy';
 import { getDataSource } from '@/lib/data/source';
+import { asSentence } from '@/lib/format';
 
 export const metadata: Metadata = {
   title: 'Proof',
@@ -38,36 +38,57 @@ export default async function ProofPage() {
   if (!pair) notFound();
 
   const { green, red } = pair;
-  const agent = await ds.getAgent(pair.tokenId);
 
+  // D14 — an AGGREGATE badge, deliberately not attributed to one agent.
+  //
+  // The green is a real accepted ledger entry; the red is a tamper test that
+  // belongs to no record (v1.1 Q1). A per-agent badge here would imply the
+  // tamper test is part of that agent's history, which is exactly the wrong
+  // claim on the page whose whole job is to be precise about it. There is no
+  // percentage either: every stored entry passed the check by invariant I1.
   return (
-    <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-12 px-4 py-12">
+    <main className="container-page flex flex-col gap-10 px-4 py-12 sm:px-6">
       <header className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
         <p className="eyebrow">The two-minute check</p>
-        <h1 className="display">Two transactions. One byte apart.</h1>
-        <p className="text-muted-foreground text-lg leading-relaxed">
+        {/* Hero scale: /proof is the other surface someone is sent a link to
+            cold, so it carries the same weight as the landing page (D19). */}
+        <h1 className="display-hero">
+          Two transactions.{' '}
+          <span className="text-foreground/50">One byte apart.</span>
+        </h1>
+        <p className="page-lede">
           No wallet, no signup, no setup. Below are an accepted decision and the identical
           submission with a single tampered byte, plus the command to verify either one yourself.
         </p>
-        <HonestStatusBadge
-          decisions={agent?.decisionCount}
-          brainBoundPct={agent?.brainBoundPct}
-        />
       </header>
 
-      {/* ── The pair ────────────────────────────────────────────────────── */}
-      <section className="grid gap-4 lg:grid-cols-2" aria-label="Accepted and rejected transactions">
-        <DecisionReceipt entry={green} variant="showcase" />
-        <DecisionReceipt entry={red} variant="showcase" />
+      {/* ── The difference, first ───────────────────────────────────────── */}
+      <ByteDiffReveal green={green} red={red} />
+
+      {/* ── The two outcomes ────────────────────────────────────────────── */}
+      <section className="grid items-stretch gap-4 lg:grid-cols-2" aria-label="Accepted and rejected transactions">
+        <DecisionReceipt entry={green} variant="showcase" hashes="collapsed" className="h-full" />
+        <DecisionReceipt
+          entry={red}
+          variant="showcase"
+          hashes="collapsed"
+          className="h-full"
+          footer={
+            /* Inside the card, not below it: the note belongs to this receipt,
+               and hanging it underneath left the pair with ragged bottoms. */
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              This transaction is a <strong className="font-semibold">tamper test</strong>. It was
+              refused on-chain, so it has no entry index and appears in no agent&rsquo;s record.
+            </p>
+          }
+        />
       </section>
 
-      <ByteDiffReveal green={green} red={red} className="mx-auto w-full max-w-4xl" />
-
       {/* ── Verify it yourself ─────────────────────────────────────────── */}
-      <section className="border-border-strong mx-auto flex w-full max-w-4xl flex-col gap-5 rounded-lg border p-6">
+      <section className="surface flex w-full flex-col gap-5 p-6">
         <div className="flex flex-col gap-2">
           <p className="eyebrow">Check it without us</p>
-          <h2 className="text-xl font-semibold tracking-tight">
+          <h2 className="heading text-xl">
             Recompute everything from public RPC data.
           </h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
@@ -99,9 +120,9 @@ export default async function ProofPage() {
       </section>
 
       {/* ── The mechanism ─────────────────────────────────────────────── */}
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <section className="flex w-full max-w-[68ch] flex-col gap-4">
         <p className="eyebrow">The mechanism</p>
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="heading text-xl">
           Why the record cannot be quietly rewritten
         </h2>
         <p className="text-muted-foreground leading-relaxed">
@@ -120,31 +141,36 @@ export default async function ProofPage() {
       </section>
 
       {/* ── Proven / not proven ───────────────────────────────────────── */}
-      <section className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-2">
-        <div className="border-accepted-border bg-accepted-surface flex flex-col gap-3 rounded-lg border p-5">
-          <h3 className="text-accepted-fg flex items-center gap-2 text-sm font-semibold tracking-tight">
+      <section className="grid w-full items-stretch gap-4 lg:grid-cols-2">
+        {/* D20 — neutral surface, accent edge, coloured ICONS. Two full-bleed
+            tinted panels side by side turned the page into a green block next to
+            a red block, and the body copy inheriting the semantic colour made
+            plain prose read as status. The claim is carried by the icon and the
+            heading; the sentences are just sentences. */}
+        <div className="surface border-l-accepted flex h-full flex-col gap-3 border-l-2 p-5">
+          <h3 className="heading text-accepted-fg flex items-center gap-2 text-sm">
             <Check className="size-4 shrink-0" aria-hidden />
             What this proves
           </h3>
           <ul className="flex flex-col gap-2.5">
             {PROVEN.map((item) => (
-              <li key={item} className="text-accepted-fg flex gap-2 text-sm leading-relaxed">
-                <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <li key={item} className="text-muted-foreground flex gap-2 text-[0.8125rem] leading-relaxed">
+                <Check className="text-accepted-fg mt-0.5 size-3.5 shrink-0" aria-hidden />
                 <span>{item}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="border-rejected-border bg-rejected-surface flex flex-col gap-3 rounded-lg border border-dashed p-5">
-          <h3 className="text-rejected-fg flex items-center gap-2 text-sm font-semibold tracking-tight">
+        <div className="surface border-l-rejected flex h-full flex-col gap-3 border-l-2 border-dashed p-5">
+          <h3 className="heading text-rejected-fg flex items-center gap-2 text-sm">
             <X className="size-4 shrink-0" aria-hidden />
             What it does not
           </h3>
           <ul className="flex flex-col gap-2.5">
             {NOT_PROVEN.map((item) => (
-              <li key={item} className="text-rejected-fg flex gap-2 text-sm leading-relaxed">
-                <X className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <li key={item} className="text-muted-foreground flex gap-2 text-[0.8125rem] leading-relaxed">
+                <X className="text-rejected-fg mt-0.5 size-3.5 shrink-0" aria-hidden />
                 <span>{item}</span>
               </li>
             ))}
@@ -152,10 +178,10 @@ export default async function ProofPage() {
         </div>
       </section>
 
-      <section className="border-border mx-auto flex w-full max-w-4xl flex-col gap-3 rounded-lg border border-dashed p-6">
+      <section className="surface flex w-full flex-col gap-3 p-6">
         <p className="eyebrow">Stated plainly</p>
         <p className="text-muted-foreground text-sm leading-relaxed">{LIMITS.provenanceNotAlpha}</p>
-        <p className="text-muted-foreground text-sm leading-relaxed">{APPROVED.audit}.</p>
+        <p className="text-muted-foreground text-sm leading-relaxed">{asSentence(APPROVED.audit)}.</p>
         <Button asChild variant="outline" size="sm" className="self-start">
           <Link href="/about">Full limits and threat model</Link>
         </Button>

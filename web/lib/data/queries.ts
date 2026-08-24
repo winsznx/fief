@@ -14,7 +14,8 @@ export const qk = {
   agents: ['agents'] as const,
   agent: (tokenId: string) => ['agent', tokenId] as const,
   entries: (tokenId: string) => ['entries', tokenId] as const,
-  entry: (tokenId: string, index: number) => ['entry', tokenId, index] as const,
+  /** Keyed on txHash (v1.1 Q1) — a rejected entry has no index to key on. */
+  entry: (txHash: string) => ['entry', txHash] as const,
   listing: (tokenId: string) => ['listing', tokenId] as const,
   ownerAgents: (address?: string) => ['owner-agents', address ?? null] as const,
   renterGrants: (address?: string) => ['renter-grants', address ?? null] as const,
@@ -53,10 +54,10 @@ export function useEntriesPage(tokenId: string, limit = 500) {
   });
 }
 
-export function useEntry(tokenId: string, index: number) {
+export function useEntry(txHash: string) {
   return useQuery({
-    queryKey: qk.entry(tokenId, index),
-    queryFn: () => getDataSource().getEntry(tokenId, index),
+    queryKey: qk.entry(txHash),
+    queryFn: () => getDataSource().getEntry(txHash),
   });
 }
 

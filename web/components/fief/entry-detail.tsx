@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { DecisionReceipt } from '@/components/fief/decision-receipt';
 import { Hash } from '@/components/fief/hash';
@@ -19,6 +20,10 @@ export function EntryDetail({
   agent: Agent;
   className?: string;
 }) {
+  // v1.1 Q1: a null entryIndex means the submission was never stored on-chain,
+  // so it is a tamper test rather than part of this agent's record.
+  const tamperTest = entry.entryIndex === null;
+
   return (
     <div className={cn('flex flex-col gap-6', className)}>
       <header className="flex flex-col gap-2">
@@ -26,12 +31,26 @@ export function EntryDetail({
           <Link href={`/agents/${agent.tokenId}`} className="hover:text-foreground underline-offset-4 hover:underline">
             {agent.name}
           </Link>{' '}
-          · entry #{entry.index}
+          · {tamperTest ? 'tamper test' : `entry #${entry.entryIndex}`}
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="heading text-2xl">
           {entry.status === 'accepted' ? 'Accepted decision' : 'Rejected submission'}
         </h1>
       </header>
+
+      {/* Stated before the receipt, not after: a rejected submission is not a
+          gap in the record, because it was never in the record. */}
+      {tamperTest ? (
+        <p className="border-border text-muted-foreground flex items-start gap-2 rounded-lg border border-dashed p-4 text-sm leading-relaxed">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            This submission was <strong className="font-semibold">rejected on-chain</strong>, so it
+            has no entry index and is not part of {agent.name}&rsquo;s ledger — the record holds
+            accepted decisions only. It is a deliberate tamper test, kept so the check can be seen
+            failing.
+          </span>
+        </p>
+      ) : null}
 
       <DecisionReceipt entry={entry} variant="full" />
 
@@ -54,7 +73,7 @@ function ResponseBytes({ entry }: { entry: DecisionEntry }) {
   const anchorEnd = offset + CONTENT_ANCHOR.length;
 
   return (
-    <section className="border-border-strong flex flex-col gap-3 rounded-lg border p-5">
+    <section className="surface flex flex-col gap-3 p-5">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-tight">Signed response bytes</h2>
         <span className="text-muted-foreground tnum font-mono text-xs">

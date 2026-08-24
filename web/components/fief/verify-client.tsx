@@ -16,10 +16,14 @@ import { VerifyCommand } from './verify-command';
 /**
  * Verify — handoff §5.8.
  *
- * States: idle, checking, valid, invalid/tampered, not-found, error. v1.1 [12]
- * added `VerifyResult.outcome` so `not-found` and `error` are distinguishable;
+ * States: idle, checking, valid, tampered, not_found, error. v1.1 [12] replaced
+ * `ok: boolean` with `outcome`, so `not_found` and `error` are distinguishable;
  * previously both collapsed into `ok: false` with an implicit "tx found" check,
  * which cannot drive two different UI states.
+ *
+ * A tampered result is reachable for the deliberate tamper tests, which are the
+ * only rejected transactions that exist (v1.1 Q1) — an agent's record itself is
+ * accepted-only.
  *
  * Read-only. No wallet, by design.
  */
@@ -100,7 +104,7 @@ export function VerifyClient({ initialTxHash = '' }: { initialTxHash?: string })
 }
 
 function Result({ result }: { result: VerifyResult }) {
-  if (result.outcome === 'not-found') {
+  if (result.outcome === 'not_found') {
     return (
       <ErrorState
         title="No record entry at this hash"
@@ -113,7 +117,11 @@ function Result({ result }: { result: VerifyResult }) {
     return (
       <ErrorState
         title="That is not a valid transaction hash"
-        description={result.checks[0]?.detail ?? 'Expected 0x followed by 64 hex characters.'}
+        // v1.1 populates `error` iff outcome === 'error', so the message no
+        // longer has to be mined out of the checks array.
+        description={
+          result.error ?? result.checks[0]?.detail ?? 'Expected 0x followed by 64 hex characters.'
+        }
       />
     );
   }
@@ -124,10 +132,9 @@ function Result({ result }: { result: VerifyResult }) {
     <div className="flex flex-col gap-6">
       <section
         className={cn(
-          'flex flex-col gap-4 rounded-lg border p-5',
-          valid
-            ? 'border-accepted-border bg-accepted-surface'
-            : 'border-rejected-border bg-rejected-surface border-dashed',
+          // D20 — neutral surface with an accent edge, matching the receipt.
+          'surface flex flex-col gap-4 border-l-2 p-5',
+          valid ? 'border-l-accepted' : 'border-l-rejected border-dashed',
         )}
       >
         <header className="flex items-center gap-3">
@@ -138,7 +145,7 @@ function Result({ result }: { result: VerifyResult }) {
           )}
           <h2
             className={cn(
-              'text-lg font-semibold tracking-tight',
+              'heading text-base',
               valid ? 'text-accepted-fg' : 'text-rejected-fg',
             )}
           >

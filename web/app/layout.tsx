@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google';
 import { Footer } from '@/components/fief/footer';
-import { MockModeRibbon } from '@/components/fief/mock-mode-ribbon';
 import { NetworkGuard } from '@/components/fief/network-guard';
 import { TopNav } from '@/components/fief/top-nav';
 import { Providers } from './providers';
@@ -15,6 +14,19 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+});
+
+/**
+ * Display face (D19).
+ *
+ * Only the weights actually used are requested — 500 for display type and 600
+ * for the wordmark — because each additional weight is another font file on the
+ * critical path for text that is above the fold.
+ */
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+  weight: ['500', '600'],
 });
 
 export const metadata: Metadata = {
@@ -34,11 +46,10 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <Providers>
-          <MockModeRibbon />
           <TopNav />
           <NetworkGuard />
           <div className="flex flex-1 flex-col">{children}</div>

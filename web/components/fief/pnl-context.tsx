@@ -5,6 +5,18 @@ import { cn } from '@/lib/utils';
 import { ContextLine } from './charts';
 
 /**
+ * Whether there is a P&L series worth rendering.
+ *
+ * Exported so a caller can choose its layout without duplicating the predicate
+ * — `<PnlContext>` returning null (D16) would otherwise leave a dead grid
+ * column that the caller has no honest way to detect.
+ */
+export function hasPnlContext(agent: Agent): boolean {
+  const series = agent.pnlContext?.series;
+  return series !== undefined && series.length >= 2;
+}
+
+/**
  * P&L context — handoff §3 / §5.4, PRD §19.
  *
  * "P&L is context, not proof. Label any performance number 'context —
@@ -12,6 +24,12 @@ import { ContextLine } from './charts';
  * it is rendered unconditionally, above the number, and the chart is neutral
  * grey so it cannot borrow the credibility of the green/red provenance
  * semantic (D11).
+ *
+ * D16 — returns null unless there is an actual series to plot. A permanent
+ * "not enough history" panel on every agent page is noise that also implies the
+ * data is coming; when no P&L series exists, the honest UI is no P&L section.
+ * `/design` renders it with an explicitly synthetic series so the component
+ * stays reviewable without attributing fabricated performance to a real agent.
  */
 export function PnlContext({
   agent,
@@ -20,8 +38,10 @@ export function PnlContext({
   agent: Agent;
   className?: string;
 }) {
-  if (!agent.pnlContext) return null;
-  const { window: pnlWindow, series } = agent.pnlContext;
+  const series = agent.pnlContext?.series;
+  if (!agent.pnlContext || !hasPnlContext(agent) || !series) return null;
+
+  const { window: pnlWindow } = agent.pnlContext;
 
   return (
     <section
@@ -46,13 +66,7 @@ export function PnlContext({
         </span>
       </p>
 
-      {series && series.length >= 2 ? (
-        <ContextLine series={series} />
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          Not enough recorded history in this window to plot context.
-        </p>
-      )}
+      <ContextLine series={series} />
     </section>
   );
 }

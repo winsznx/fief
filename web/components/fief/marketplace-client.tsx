@@ -83,7 +83,7 @@ export function MarketplaceClient() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
         <div
           className="flex flex-wrap items-center gap-1.5"
@@ -142,7 +142,7 @@ export function MarketplaceClient() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map(({ agent, listing, entries }) => (
             <AgentCard
               key={agent.tokenId}
@@ -172,7 +172,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'focus-visible:ring-ring/60 rounded-sm border px-2.5 py-1 font-mono text-[0.6875rem] transition-colors focus-visible:ring-2 focus-visible:outline-none',
+        'focus-visible:ring-ring/60 rounded-sm border px-3 py-1 font-mono text-[0.6875rem] whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none',
         active
           ? 'border-foreground bg-foreground text-background'
           : 'border-border-strong text-muted-foreground hover:text-foreground',

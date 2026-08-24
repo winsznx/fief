@@ -22,7 +22,7 @@ export function NetworkGuard() {
       className="border-rejected-border bg-rejected-surface border-b px-4 py-2"
       role="alert"
     >
-      <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-3">
+      <div className="mx-auto flex max-w-(--container-page) flex-wrap items-center gap-3">
         <AlertTriangle className="text-rejected-fg size-4 shrink-0" aria-hidden />
         <p className="text-rejected-fg flex-1 text-sm">
           Wrong network. Switch to {expectedChainName} ({expectedChainId}) to continue.

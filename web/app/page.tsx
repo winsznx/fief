@@ -1,13 +1,46 @@
 import { ArrowRight, Cpu, Link2, PenLine } from 'lucide-react';
 import Link from 'next/link';
+import { AgentCard } from '@/components/fief/agent-card';
 import { ByteDiffReveal } from '@/components/fief/byte-diff-reveal';
-import { ProvenanceSparkline } from '@/components/fief/charts';
 import { DecisionReceipt } from '@/components/fief/decision-receipt';
-import { HonestStatusBadge } from '@/components/fief/honest-status-badge';
+import { VerifyCommand } from '@/components/fief/verify-command';
 import { Button } from '@/components/ui/button';
 import { APPROVED } from '@/lib/copy';
 import { getDataSource } from '@/lib/data/source';
-import { formatCount, formatPct } from '@/lib/format';
+import { asSentence, formatCount } from '@/lib/format';
+
+/**
+ * Landing page.
+ *
+ * Six sections, each with ONE dominant element:
+ *
+ *   1 Hero          the headline
+ *   2 Proof strip   the three counts
+ *   3 Proof panel   the byte diff            <- the anchor of the whole page
+ *   4 How it works  the three steps
+ *   5 Agents        the cadence charts
+ *   6 Close         the single remaining call to action
+ *
+ * Rhythm is `py-section` (112px) between these, `gap-group` (64px) between
+ * groups inside one, `gap-item` (24px) within a group. Nothing is spaced by
+ * eye — the previous page mixed py-4, py-12, py-14 and a bare mt-16, which is
+ * why it had voids in some joins and collisions in others.
+ *
+ * Things deliberately deleted rather than restyled:
+ *
+ *   The second CTA pair. "Browse agents / See the proof" appeared in the hero and
+ *   again lower down with almost no new content between them, so the repeat read
+ *   as a rendering mistake. There is now exactly one primary pair, in the hero,
+ *   and one closing action at the end.
+ *
+ *   The orphaned keyword strip. Four uppercase properties floated in their own
+ *   band with large padding and no container, belonging to nothing. They are now
+ *   the label row of the proof strip, where they caption real numbers.
+ *
+ *   The <SealMark> centrepiece. A 232px arrangement of concentric circles is
+ *   decoration standing in for a product shot. The hero now shows an actual
+ *   accepted record instead — real fixture data, the literal thing being sold.
+ */
 
 const STEPS = [
   {
@@ -31,114 +64,167 @@ export default async function Home() {
   const ds = getDataSource();
   const [pair, agents] = await Promise.all([ds.getShowcasePair(), ds.listAgents()]);
 
+  // v1.1 Q1 removed the aggregate percentage. A weighted "provenance-verified %"
+  // could only ever be 100 (every stored entry passed the on-chain check by
+  // invariant I1), so it was a number that looked like evidence while carrying
+  // none. Counts are what actually vary.
   const totalDecisions = agents.reduce((sum, a) => sum + a.decisionCount, 0);
-  // Aggregate brain-bound is weighted by each agent's own entry total, so a
-  // single deliberate tamper test cannot be hidden by averaging percentages.
-  const weighted = agents.reduce(
-    (acc, a) => {
-      const total = a.brainBoundPct === 0 ? 0 : a.decisionCount / (a.brainBoundPct / 100);
-      return { accepted: acc.accepted + a.decisionCount, total: acc.total + total };
-    },
-    { accepted: 0, total: 0 },
-  );
-  const aggregateBrainBound =
-    weighted.total === 0 ? 100 : Math.round((weighted.accepted / weighted.total) * 10_000) / 100;
+  const withRecord = agents.filter((a) => a.decisionCount > 0).length;
 
-  const featured = agents.slice(0, 2);
+  const featured = agents.filter((a) => a.decisionCount > 0).slice(0, 3);
   const featuredEntries = await Promise.all(
-    featured.map((a) => ds.getEntries(a.tokenId, { limit: 40 })),
+    featured.map((a) => ds.getEntries(a.tokenId, { limit: 200 })),
   );
 
   return (
     <main className="flex w-full flex-col">
-      {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="mx-auto flex w-full max-w-[1200px] flex-col gap-7 px-4 pt-14 pb-12">
-        <p className="eyebrow">AI × onchain marketplace on 0G</p>
+      {/* ── 1. Hero — the headline dominates ─────────────────────────────── */}
+      {/* Left-aligned and asymmetric: text in seven columns, the artifact in
+          five. Everything was previously centre-stacked, which gave the hero no
+          direction and left the visual sitting on top of the headline like a
+          logo. */}
+      <section className="container-page px-4 pt-group pb-section sm:px-6">
+        <div className="grid items-center gap-group lg:grid-cols-12">
+          <div className="flex flex-col items-start gap-item lg:col-span-7">
+            <p className="eyebrow">AI × onchain marketplace on 0G</p>
 
-        <h1 className="display max-w-4xl">
-          Rent or buy a trading agent whose track record is signed by its own sealed brain.
-        </h1>
+            {/* Two-tone: the offer at full strength, the claim it rests on
+                stepped back. One sentence, two weights of attention. */}
+            <h1 className="display-hero max-w-[18ch]">
+              Rent a trading agent{' '}
+              <span className="text-foreground/45">that can prove its own record.</span>
+            </h1>
 
-        <p className="text-muted-foreground max-w-3xl text-lg leading-relaxed">
-          Every decision an agent makes comes back TEE-signed by 0G Compute, is{' '}
-          {APPROVED.verified}, and lands in a record that travels with the token when the agent is
-          rented or sold.
-        </p>
+            <p className="page-lede max-w-[52ch]">
+              Every decision is signed inside a TEE by 0G Compute, hash-committed, and appended
+              on-chain — so a track record cannot be edited after the fact. The record travels with
+              the token when the agent is rented or sold.
+            </p>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button asChild>
-            <Link href="/agents">
-              Browse agents
-              <ArrowRight className="size-4" aria-hidden />
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/proof">How it&rsquo;s verified</Link>
-          </Button>
-          <HonestStatusBadge
-            decisions={totalDecisions}
-            brainBoundPct={aggregateBrainBound}
-            className="ml-auto"
-          />
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Button asChild size="lg">
+                <Link href="/agents">
+                  Browse agents
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/proof">See the proof</Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* The product's actual output, as the hero visual. */}
+          {pair ? (
+            <div className="w-full lg:col-span-5">
+              <DecisionReceipt entry={pair.green} hashes="collapsed" />
+            </div>
+          ) : null}
         </div>
       </section>
 
-      {/* ── The headline artifact ───────────────────────────────────────── */}
+      {/* ── 2. Proof strip — the counts dominate ─────────────────────────── */}
+      {/* One thin band, three figures, and the four properties as their caption
+          row. Replaces two former sections: a floating keyword strip and a
+          three-card stat grid that sat two screens further down. */}
+      <section className="container-page px-4 sm:px-6">
+        <div className="surface-flat grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0 [&>*]:border-border">
+          <StripCell
+            value={formatCount(totalDecisions)}
+            label="Accepted decisions"
+            hint="Each bound to a sealed strategy"
+          />
+          <StripCell
+            value={formatCount(withRecord)}
+            label="Agents with a record"
+            hint="At least one accepted entry"
+          />
+          <StripCell
+            value={formatCount(agents.length)}
+            label="Agents minted"
+            hint="Listed, rented and retired"
+          />
+        </div>
+        <ul className="text-muted-foreground/70 mt-item flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.625rem] font-medium tracking-[0.18em] uppercase">
+          {['Sealed strategy', 'TEE-signed decisions', 'Append-only record', 'Independently verifiable'].map(
+            (chip, i) => (
+              <li key={chip} className="flex items-center gap-5">
+                {i > 0 ? (
+                  <span aria-hidden className="bg-muted-foreground/30 size-[3px] rounded-full" />
+                ) : null}
+                {chip}
+              </li>
+            ),
+          )}
+        </ul>
+      </section>
+
+      {/* ── 3. Proof panel — the byte diff dominates ─────────────────────── */}
       {pair ? (
-        <section className="border-border-strong border-y">
-          <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-12">
-            <div className="mx-auto flex max-w-3xl flex-col gap-3 text-center">
-              <p className="eyebrow mx-auto">The same submission, one changed byte</p>
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                One was accepted. One was rejected on-chain.
+        <section className="container-page px-4 py-section sm:px-6">
+          <div className="flex flex-col gap-group">
+            <div className="flex max-w-[60ch] flex-col gap-item">
+              <p className="eyebrow">The same submission, one changed byte</p>
+              <h2 className="display">
+                One was accepted.{' '}
+                <span className="text-foreground/45">One was rejected on-chain.</span>
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="page-lede">
                 Both are real transactions on 0G. The left is a decision from a live 0G Compute
                 inference. The right is the identical submission with a single tampered byte — the
                 contract refused it.
               </p>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <DecisionReceipt entry={pair.green} variant="showcase" />
-              <DecisionReceipt entry={pair.red} variant="showcase" />
-            </div>
+            <ByteDiffReveal green={pair.green} red={pair.red} />
 
-            <ByteDiffReveal
-              green={pair.green}
-              red={pair.red}
-              className="mx-auto w-full max-w-4xl"
-            />
+            {/* Outcomes second: the badge and the verdict, with the hashes one
+                click away rather than twelve rows of hex at equal weight. */}
+            <div className="grid items-stretch gap-4 lg:grid-cols-2">
+              <DecisionReceipt
+                entry={pair.green}
+                variant="showcase"
+                hashes="collapsed"
+                className="h-full"
+              />
+              <DecisionReceipt
+                entry={pair.red}
+                variant="showcase"
+                hashes="collapsed"
+                className="h-full"
+                footer={
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    This transaction is a <strong className="font-semibold">tamper test</strong>. It
+                    was refused on-chain, so it has no entry index and appears in no agent&rsquo;s
+                    record.
+                  </p>
+                }
+              />
+            </div>
           </div>
         </section>
       ) : null}
 
-      {/* ── Counter ────────────────────────────────────────────────────── */}
-      <section className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 py-12 sm:grid-cols-3">
-        <Stat label="Brain-bound decisions" value={formatCount(totalDecisions)} />
-        <Stat label="Provenance-verified" value={`${formatPct(aggregateBrainBound)}%`} />
-        <Stat label="Listed agents" value={formatCount(agents.length)} />
-      </section>
-
-      {/* ── How it works ───────────────────────────────────────────────── */}
-      <section className="border-border-strong border-t">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-4 py-14">
-          <div className="flex flex-col gap-2">
+      {/* ── 4. How it works — the three steps dominate ───────────────────── */}
+      <section className="container-page px-4 pb-section sm:px-6">
+        <div className="flex flex-col gap-group">
+          <div className="flex max-w-[60ch] flex-col gap-item">
             <p className="eyebrow">How it works</p>
-            <h2 className="text-2xl font-semibold tracking-tight">
-              Three steps, none of which you have to trust us on.
+            <h2 className="display">
+              Three steps,{' '}
+              <span className="text-foreground/45">none of which you have to trust us on.</span>
             </h2>
           </div>
 
-          <ol className="grid gap-6 md:grid-cols-3">
+          <ol className="grid gap-8 md:grid-cols-3">
             {STEPS.map((step, i) => (
               <li key={step.title} className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="border-border-strong text-muted-foreground tnum flex size-7 shrink-0 items-center justify-center rounded-sm border font-mono text-xs">
+                  <span className="border-border text-muted-foreground tnum flex size-7 shrink-0 items-center justify-center rounded-sm border font-mono text-xs">
                     {i + 1}
                   </span>
                   <step.icon className="text-muted-foreground size-4" aria-hidden />
-                  <h3 className="font-semibold tracking-tight">{step.title}</h3>
+                  <h3 className="heading text-[0.9375rem]">{step.title}</h3>
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">{step.body}</p>
               </li>
@@ -147,72 +233,80 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── Featured agents ────────────────────────────────────────────── */}
-      <section className="border-border-strong border-t">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-14">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="flex flex-col gap-2">
-              <p className="eyebrow">Agents</p>
-              <h2 className="text-2xl font-semibold tracking-tight">Records you can check</h2>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/agents">
-                All agents
-                <ArrowRight className="size-3.5" aria-hidden />
-              </Link>
-            </Button>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {featured.map((agent, i) => {
-              const entries = featuredEntries[i];
-              return (
-                <Link
-                  key={agent.tokenId}
-                  href={`/agents/${agent.tokenId}`}
-                  className="border-border-strong hover:bg-muted/40 focus-visible:ring-ring/60 flex flex-col gap-4 rounded-lg border p-5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h3 className="font-semibold tracking-tight">{agent.name}</h3>
-                    <span className="tnum text-muted-foreground font-mono text-xs">
-                      epoch {agent.epoch}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground text-sm">{agent.domain}</p>
-                  <ProvenanceSparkline entries={entries} />
-                  <div className="text-muted-foreground flex flex-wrap gap-x-4 font-mono text-xs">
-                    <span className="tnum">{formatCount(agent.decisionCount)} decisions</span>
-                    <span className="tnum">{formatPct(agent.brainBoundPct)}% brain-bound</span>
-                  </div>
+      {/* ── 5. Agents — the charts dominate ──────────────────────────────── */}
+      {featured.length > 0 ? (
+        <section className="container-page px-4 pb-section sm:px-6">
+          <div className="flex flex-col gap-group">
+            <div className="flex flex-wrap items-end justify-between gap-item">
+              <div className="flex max-w-[60ch] flex-col gap-item">
+                <p className="eyebrow">Agents</p>
+                <h2 className="display">
+                  Records <span className="text-foreground/45">you can check.</span>
+                </h2>
+              </div>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/agents">
+                  All agents
+                  <ArrowRight className="size-3.5" aria-hidden />
                 </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+              </Button>
+            </div>
 
-      {/* ── Honest status ──────────────────────────────────────────────── */}
-      <section className="border-border-strong border-t">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 px-4 py-14">
-          <p className="eyebrow">What is and isn&rsquo;t proven</p>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Fief proves provenance, not profit.
-          </h2>
-          <ul className="text-muted-foreground flex max-w-3xl flex-col gap-2 text-sm leading-relaxed">
-            <li>· {APPROVED.sealed}.</li>
-            <li>· {APPROVED.attested}.</li>
-            <li>· {APPROVED.audit}.</li>
-            <li>
-              · No custody and no execution of renter funds. Trade execution stays with the renter.
-            </li>
-          </ul>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/about">Read the honest limits</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/verify">Verify a transaction</Link>
-            </Button>
+            <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {featured.map((agent, i) => (
+                <AgentCard key={agent.tokenId} agent={agent} entries={featuredEntries[i]} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── 6. Close — one action, plus the self-audit path ──────────────── */}
+      <section className="container-page px-4 pb-section sm:px-6">
+        <div className="surface flex flex-col gap-group p-6 sm:p-8">
+          <div className="flex flex-col gap-item">
+            <p className="eyebrow">What is and isn&rsquo;t proven</p>
+            <h2 className="display max-w-[24ch]">
+              Fief proves provenance, <span className="text-foreground/45">not profit.</span>
+            </h2>
+            <ul className="text-muted-foreground flex max-w-[68ch] flex-col gap-2 text-[0.8125rem] leading-relaxed">
+              {[
+                `${asSentence(APPROVED.sealed)}.`,
+                `${asSentence(APPROVED.attested)}.`,
+                `${asSentence(APPROVED.audit)}.`,
+                'No custody and no execution of renter funds. Trade execution stays with the renter.',
+              ].map((line) => (
+                <li key={line} className="flex gap-2.5">
+                  <span
+                    aria-hidden
+                    className="bg-muted-foreground/40 mt-[0.5em] size-1 shrink-0 rounded-full"
+                  />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="flex flex-col gap-item border-border border-t pt-6 lg:flex-row lg:items-end lg:justify-between">
+            {/* For the technical buyer: the actual command, not a link to it. */}
+            {pair ? (
+              <VerifyCommand
+                txHash={pair.green.txHash}
+                label="Audit it yourself"
+                className="min-w-0 lg:max-w-xl lg:flex-1"
+              />
+            ) : null}
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/agents">
+                  Browse agents
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/about">Read the honest limits</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -220,11 +314,13 @@ export default async function Home() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/** One cell of the proof strip. Figure first, caption under it. */
+function StripCell({ value, label, hint }: { value: string; label: string; hint: string }) {
   return (
-    <div className="border-border-strong flex flex-col gap-1 rounded-lg border p-5">
-      <span className="eyebrow">{label}</span>
-      <span className="tnum font-mono text-3xl font-semibold tracking-tight">{value}</span>
+    <div className="flex flex-col gap-1.5 p-5">
+      <span className="figure">{value}</span>
+      <span className="text-[0.8125rem] font-medium">{label}</span>
+      <span className="text-muted-foreground text-[0.6875rem]">{hint}</span>
     </div>
   );
 }

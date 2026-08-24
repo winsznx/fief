@@ -22,7 +22,7 @@ export function SealedStrategyPanel({
 }) {
   return (
     <section
-      className={cn('border-border-strong flex flex-col gap-3 rounded-lg border p-5', className)}
+      className={cn('surface flex flex-col gap-3 p-5', className)}
       aria-label="Sealed strategy"
     >
       <header className="flex items-center gap-2">

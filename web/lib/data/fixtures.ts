@@ -5,12 +5,23 @@
  * the demo video and PR review captures are byte-stable across runs. Nothing
  * here uses Math.random() or Date.now() at module scope.
  *
+ * ── v1.1 (Q1): ledgers are ACCEPTED-ONLY ──────────────────────────────────
+ * On-chain, `entries[]` only ever holds accepted decisions — a rejected
+ * submission reverts or emits a DecisionRejected event, so it has no array
+ * index and is not part of any record. The fixture mirrors that exactly:
+ *
+ *   ledgers     accepted only, `entryIndex` contiguous from 0
+ *   tamperTests a SEPARATE collection: entryIndex null, isTamperTest true,
+ *               in no ledger, resolvable only by txHash
+ *
  * Data shape rationale (plan T6):
- *   agent 1  ~2400 accepted + 1 deliberate BadCommit tamper test  (flagship)
- *   agent 2  ~180 entries carrying ALL 7 RejectReasons            (receipt coverage)
- *   agent 3  1 entry                                             (edge case)
- *   agent 4  0 entries, retired                                  (empty ledger)
- *   agent 5  epoch 2, unlisted                                   (epoch boundary)
+ *   agent 1  2400 accepted                                      (flagship)
+ *   agent 2  180 accepted                                       (mid-size)
+ *   agent 3  1 entry                                            (edge case)
+ *   agent 4  0 entries, retired                                 (empty ledger)
+ *   agent 5  epoch 2, unlisted                                  (epoch boundary)
+ *   tamperTests  all 7 RejectReasons, so every red receipt variant stays
+ *                reachable from /design and /verify
  *
  * Entries are generated LAZILY and memoised: the generator is a few hundred
  * bytes of code in the client bundle, whereas eagerly-built arrays would
@@ -87,53 +98,32 @@ function round(n: number, dp: number): number {
 
 const DIRECTIONS: Direction[] = ['UP', 'DOWN', 'FLAT'];
 
-/** All 7 reasons, so every red receipt variant is exercised (plan T6). */
-const ALL_REJECT_REASONS: RejectReason[] = [
-  'BadCommit',
-  'BadSigner',
-  'BadNonce',
-  'BadEpoch',
-  'BadHash',
-  'NotOperator',
-  'BadAnchor',
-];
-
 interface GenSpec {
   tokenId: string;
   seed: number;
   count: number;
   epoch: number;
   strategyHash: `0x${string}`;
-  /** Reject reasons to inject, spread evenly through the ledger. */
-  rejects: RejectReason[];
   /** ISO start; entries advance on a 5-minute cadence (PRD §13). */
   startedAt: string;
   /** Indices that carry the renter address rather than the zero address. */
   renterFrom?: number;
 }
 
+/**
+ * Generates an ACCEPTED-ONLY ledger (v1.1 Q1).
+ *
+ * `entryIndex` is the position in the on-chain `entries[]` array, so it is
+ * contiguous from 0 by construction — there are no gaps, because a rejected
+ * submission never occupies a slot. `nonce` advances with it (PRD I2: the nonce
+ * is assigned in order of successful verification).
+ */
 function generateEntries(spec: GenSpec): DecisionEntry[] {
   const rand = mulberry32(spec.seed);
   const start = Date.parse(spec.startedAt);
   const entries: DecisionEntry[] = [];
 
-  // Spread the injected rejections evenly, never at index 0 (so every agent
-  // opens with a clean accepted entry).
-  const rejectAt = new Map<number, RejectReason>();
-  spec.rejects.forEach((reason, i) => {
-    const idx = Math.max(1, Math.floor(((i + 1) * spec.count) / (spec.rejects.length + 1)));
-    rejectAt.set(idx, reason);
-  });
-
-  let nonce = 0;
   for (let i = 0; i < spec.count; i += 1) {
-    const reason = rejectAt.get(i);
-    const accepted = reason === undefined;
-
-    // A rejected submission never consumes a nonce (PRD §10: the nonce is
-    // assigned in order of successful local verification).
-    if (accepted) nonce += 1;
-
     const dir = DIRECTIONS[Math.floor(rand() * DIRECTIONS.length)];
     const decision: Decision = {
       dir,
@@ -148,15 +138,14 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
 
     const tx = txHash(rand);
     entries.push({
-      index: i,
-      status: accepted ? 'accepted' : 'rejected',
-      ...(reason ? { rejectReason: reason } : {}),
+      entryIndex: i,
+      status: 'accepted',
       decision,
-      nonce: accepted ? nonce : nonce + 1,
+      nonce: i + 1,
       epoch: spec.epoch,
       reqSha: hash32(rand),
       respSha: hash32(rand),
-      teeSigner: reason === 'BadSigner' ? `0x${hex(rand, 40)}` : MOCK_TEE_SIGNER,
+      teeSigner: MOCK_TEE_SIGNER,
       provider: MOCK_PROVIDER,
       inputHash: hash32(rand),
       renter:
@@ -171,6 +160,23 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
 }
 
 /**
+ * Stable numeric seed from a string, so respData synthesis does not depend on
+ * an entry's position in a ledger.
+ *
+ * It must not depend on `entryIndex`: tamper tests have `entryIndex === null`
+ * (v1.1 Q1), and the canonical red is seeded from the green precisely so the
+ * two envelopes are identical apart from the tampered byte.
+ */
+function seedFromString(value: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/**
  * Synthesises the public respData envelope for an entry on demand.
  *
  * Kept out of `generateEntries` so the ledger fixture stays light: only the
@@ -180,15 +186,16 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
  * response as the green one with a single byte flipped (PRD §2). Both must
  * therefore share envelope metadata — chatId, created, token counts — or they
  * would differ in far more than one byte. Always reach this through
- * `getRespDataFor` so every surface renders identical bytes for a given tx.
+ * `getRespDataFor` — which is why this is module-private: a caller that skipped
+ * it could render different bytes for the same transaction on two pages.
  */
-export function synthesizeRespData(
+function synthesizeRespData(
   entry: DecisionEntry,
   agent: Pick<Agent, 'tokenId' | 'strategyHash'>,
   opts?: { tamper?: boolean; seedFrom?: DecisionEntry },
 ): { respData: string; commitOffset: number } {
   const seedEntry = opts?.seedFrom ?? entry;
-  const rand = mulberry32(seedEntry.index * 7919 + Number(agent.tokenId) * 104729);
+  const rand = mulberry32(seedFromString(`${agent.tokenId}:${seedEntry.txHash}`));
 
   const commitLine = buildCommitLine({
     book: MOCK_RECORD_BOOK,
@@ -220,26 +227,29 @@ export function synthesizeRespData(
 /**
  * The single source of respData bytes for a given entry.
  *
- * The canonical red entry is seeded from the green one so the two envelopes are
- * byte-identical apart from the tampered strategy byte. Every surface — /proof,
- * /verify, the entry detail route — must call this rather than
- * `synthesizeRespData` directly, or the same transaction would render different
- * bytes on different pages.
+ * Every surface — /proof, /verify, the entry detail route — must call this
+ * rather than `synthesizeRespData` directly, or the same transaction would
+ * render different bytes on different pages.
+ *
+ * A tamper test carries no tokenId (v1.1 Q1: it belongs to no record), so its
+ * agent context and its seed entry are resolved from the tamper-test registry.
  */
 export function getRespDataFor(
-  tokenId: string,
   entry: DecisionEntry,
+  tokenId?: string,
 ): { respData: string; commitOffset: number } {
-  const agent = getAgents().find((a) => a.tokenId === tokenId);
-  if (!agent) return { respData: '', commitOffset: 0 };
-
-  if (tokenId === '1' && entry.txHash === RED_TX) {
-    const green = getEntriesFor('1').find((e) => e.txHash === GREEN_TX);
-    if (green) {
-      return synthesizeRespData(entry, agent, { tamper: true, seedFrom: green });
-    }
+  const source = getTamperSource(entry.txHash);
+  if (source) {
+    const agent = getAgents().find((a) => a.tokenId === source.tokenId);
+    if (!agent) return { respData: '', commitOffset: 0 };
+    return synthesizeRespData(entry, agent, {
+      tamper: entry.rejectReason === 'BadCommit',
+      seedFrom: source.seed,
+    });
   }
 
+  const agent = getAgents().find((a) => a.tokenId === tokenId);
+  if (!agent) return { respData: '', commitOffset: 0 };
   return synthesizeRespData(entry, agent);
 }
 
@@ -252,18 +262,16 @@ const STRATEGY_4 = '0x91e3c7a5f2d08b46e1c3a5f7d9b1e3c5a7f9d1b3e5c7a9f1d3b5e7c9a1
 const STRATEGY_5 = '0x5f0d2b4e6c8a0f2d4b6e8c0a2f4d6b8e0c2a4f6d8b0e2c4a6f8d0b2e4c6a8f0d' as const;
 
 interface AgentSpec extends GenSpec {
-  agent: Omit<Agent, 'decisionCount' | 'brainBoundPct' | 'strategyHash' | 'epoch'>;
+  agent: Omit<Agent, 'decisionCount' | 'verified' | 'strategyHash' | 'epoch'>;
 }
 
 const AGENT_SPECS: AgentSpec[] = [
   {
     tokenId: '1',
     seed: 0x5eed01,
-    count: 2401,
+    count: 2400,
     epoch: 1,
     strategyHash: STRATEGY_1,
-    // The single deliberate tamper test that produces the canonical red tx.
-    rejects: ['BadCommit'],
     startedAt: '2026-08-12T14:00:00.000Z',
     renterFrom: 1900,
     agent: {
@@ -289,8 +297,6 @@ const AGENT_SPECS: AgentSpec[] = [
     count: 180,
     epoch: 1,
     strategyHash: STRATEGY_2,
-    // Carries every reject reason so all red receipt variants are reachable.
-    rejects: ALL_REJECT_REASONS,
     startedAt: '2026-08-16T09:30:00.000Z',
     agent: {
       tokenId: '2',
@@ -315,7 +321,6 @@ const AGENT_SPECS: AgentSpec[] = [
     count: 1,
     epoch: 1,
     strategyHash: STRATEGY_3,
-    rejects: [],
     startedAt: '2026-08-19T22:05:00.000Z',
     agent: {
       tokenId: '3',
@@ -335,7 +340,6 @@ const AGENT_SPECS: AgentSpec[] = [
     count: 0,
     epoch: 1,
     strategyHash: STRATEGY_4,
-    rejects: [],
     startedAt: '2026-08-20T08:00:00.000Z',
     agent: {
       tokenId: '4',
@@ -355,7 +359,6 @@ const AGENT_SPECS: AgentSpec[] = [
     count: 64,
     epoch: 2,
     strategyHash: STRATEGY_5,
-    rejects: ['BadEpoch'],
     startedAt: '2026-08-18T06:00:00.000Z',
     agent: {
       tokenId: '5',
@@ -371,12 +374,108 @@ const AGENT_SPECS: AgentSpec[] = [
   },
 ];
 
+/* ── Tamper tests ─────────────────────────────────────────────────────────── */
+
+/**
+ * Where a tamper test came from.
+ *
+ * A tamper test is a REPLAY of a real accepted submission, so it needs the
+ * source entry (to seed byte-identical envelope metadata) and the source agent
+ * (for the commit line's agent id and sealed strategy hash). Neither is
+ * derivable from the tamper test itself, because it belongs to no ledger.
+ */
+interface TamperSource {
+  tokenId: string;
+  seed: DecisionEntry;
+}
+
+/** Which accepted entry each reason replays.
+ *
+ * Typed as a total `Record<RejectReason, …>` deliberately: it makes "all 7 red
+ * receipt variants stay reachable" a COMPILE-TIME guarantee. Adding a reason to
+ * `RejectReason` without giving it a tamper test is a type error, not a silently
+ * unreachable UI state.
+ */
+const TAMPER_SPECS: Record<RejectReason, { tokenId: string; at: number }> = {
+  // The canonical demo red: agent 1's first accepted entry, re-sent with one
+  // tampered byte. This pair is the product's headline claim (PRD §2).
+  BadCommit: { tokenId: '1', at: 0 },
+  BadSigner: { tokenId: '2', at: 12 },
+  BadNonce: { tokenId: '2', at: 40 },
+  // Agent 5 is on epoch 2, so a submission naming epoch 1 is genuinely an epoch
+  // the token has moved past rather than an invented value.
+  BadEpoch: { tokenId: '5', at: 10 },
+  BadHash: { tokenId: '2', at: 77 },
+  NotOperator: { tokenId: '3', at: 0 },
+  BadAnchor: { tokenId: '2', at: 120 },
+};
+
+function buildTamperTests(ledgers: Map<string, DecisionEntry[]>): {
+  tests: DecisionEntry[];
+  sources: Map<string, TamperSource>;
+} {
+  const rand = mulberry32(0x7a3b9e);
+  const tests: DecisionEntry[] = [];
+  const sources = new Map<string, TamperSource>();
+
+  for (const [reason, spec] of Object.entries(TAMPER_SPECS) as [
+    RejectReason,
+    { tokenId: string; at: number },
+  ][]) {
+    const source = ledgers.get(spec.tokenId)?.[spec.at];
+    if (!source) continue;
+
+    const canonical = reason === 'BadCommit';
+    const tx = canonical ? RED_TX : txHash(rand);
+    // A replay lands a minute after the submission it copies.
+    const blockTime = new Date(Date.parse(source.blockTime) + 60_000).toISOString();
+
+    const test: DecisionEntry = {
+      ...source,
+      // v1.1 Q1: never stored on-chain, so there is no array slot to occupy.
+      entryIndex: null,
+      status: 'rejected',
+      rejectReason: reason,
+      isTamperTest: true,
+      txHash: tx,
+      chainScanUrl: CHAIN_SCAN_TX(tx),
+      blockTime,
+
+      // Per-reason mutation, so each red entry is internally consistent with
+      // the reason it carries rather than merely labelled with it.
+      //
+      // BadCommit tampers the respData bytes, not a field — see
+      // synthesizeRespData. NotOperator and BadAnchor are properties of the
+      // SUBMISSION rather than the entry: who sent the transaction, and where
+      // the commit line sits inside the envelope. Neither has a DecisionEntry
+      // field to mutate, so those two stay faithful copies and the failing
+      // check is what distinguishes them.
+      ...(reason === 'BadSigner' ? { teeSigner: `0x${hex(rand, 40)}` as const } : {}),
+      ...(reason === 'BadNonce' ? { nonce: source.nonce } : {}),
+      ...(reason === 'BadEpoch' ? { epoch: Math.max(1, source.epoch - 1) } : {}),
+      ...(reason === 'BadHash' ? { respSha: hash32(rand) } : {}),
+    };
+
+    tests.push(test);
+    sources.set(tx.toLowerCase(), { tokenId: spec.tokenId, seed: source });
+  }
+
+  return { tests, sources };
+}
+
 /* ── Memoised access ──────────────────────────────────────────────────────── */
 
 let entriesCache: Map<string, DecisionEntry[]> | null = null;
 let agentsCache: Agent[] | null = null;
+let tamperCache: DecisionEntry[] | null = null;
+let tamperSourceCache: Map<string, TamperSource> | null = null;
 
-function buildAll(): { agents: Agent[]; entries: Map<string, DecisionEntry[]> } {
+function buildAll(): {
+  agents: Agent[];
+  entries: Map<string, DecisionEntry[]>;
+  tamperTests: DecisionEntry[];
+  tamperSources: Map<string, TamperSource>;
+} {
   const entries = new Map<string, DecisionEntry[]>();
   const agents: Agent[] = [];
 
@@ -384,87 +483,101 @@ function buildAll(): { agents: Agent[]; entries: Map<string, DecisionEntry[]> } 
     const list = generateEntries(spec);
     entries.set(spec.tokenId, list);
 
-    const accepted = list.filter((e) => e.status === 'accepted').length;
-    const rejected = list.length - accepted;
-
     agents.push({
       ...spec.agent,
       epoch: spec.epoch,
       strategyHash: spec.strategyHash,
-      // DERIVED, never hardcoded (plan T6). PRD §5: rejections revert, so the
-      // stored record is the accepted set; rejected submissions surface as
-      // DecisionRejected events and are shown alongside for legibility.
-      // See plan §10 item 1 — semantics pending @winsznx confirmation.
-      decisionCount: accepted,
-      brainBoundPct:
-        list.length === 0 ? 100 : round((accepted / (accepted + rejected)) * 100, 2),
+      // DERIVED, never hardcoded (plan T6). The ledger is accepted-only
+      // (v1.1 Q1), so the count is simply its length.
+      decisionCount: list.length,
+      // Not a percentage: every stored entry passed the on-chain check by
+      // invariant I1, so there is no fraction to report (v1.1 Q1 / D15).
+      verified: true,
     });
   }
 
-  // Pin the canonical showcase pair to the fixed demo tx hashes so /proof,
-  // /verify and the README all reference the same two transactions.
-  const first = entries.get('1');
-  if (first) {
-    const green = first.find((e) => e.status === 'accepted');
-    const red = first.find((e) => e.rejectReason === 'BadCommit');
-    if (green) {
-      green.txHash = GREEN_TX;
-      green.chainScanUrl = CHAIN_SCAN_TX(GREEN_TX);
-    }
-    if (red) {
-      red.txHash = RED_TX;
-      red.chainScanUrl = CHAIN_SCAN_TX(RED_TX);
-      // The red submission is the green one re-sent with a tampered byte, so
-      // it must declare the same nonce and inputHash to be a faithful replay.
-      if (green) {
-        red.nonce = green.nonce;
-        red.inputHash = green.inputHash;
-        red.reqSha = green.reqSha;
-        red.decision = { ...green.decision };
-      }
-    }
+  // Pin the canonical green to the documented demo tx hash so /proof, /verify
+  // and the README all reference the same transaction.
+  const green = entries.get('1')?.[0];
+  if (green) {
+    green.txHash = GREEN_TX;
+    green.chainScanUrl = CHAIN_SCAN_TX(GREEN_TX);
   }
 
-  return { agents, entries };
+  // Built AFTER the green is pinned: the canonical red replays it, and seeds
+  // its envelope from the green's tx hash.
+  const { tests, sources } = buildTamperTests(entries);
+
+  return { agents, entries, tamperTests: tests, tamperSources: sources };
 }
 
 function ensure() {
-  if (agentsCache === null || entriesCache === null) {
+  if (
+    agentsCache === null ||
+    entriesCache === null ||
+    tamperCache === null ||
+    tamperSourceCache === null
+  ) {
     const built = buildAll();
     agentsCache = built.agents;
     entriesCache = built.entries;
+    tamperCache = built.tamperTests;
+    tamperSourceCache = built.tamperSources;
   }
-  return { agents: agentsCache, entries: entriesCache };
+  return {
+    agents: agentsCache,
+    entries: entriesCache,
+    tamperTests: tamperCache,
+    tamperSources: tamperSourceCache,
+  };
 }
 
 export function getAgents(): Agent[] {
   return ensure().agents;
 }
 
+/** Accepted entries only (v1.1 Q1). Tamper tests live in `getTamperTests()`. */
 export function getEntriesFor(tokenId: string): DecisionEntry[] {
   return ensure().entries.get(tokenId) ?? [];
 }
 
 /**
+ * The deliberate tamper tests — all 7 RejectReasons.
+ *
+ * These are NOT in any ledger and have no `entryIndex`. They exist so the red
+ * receipt variants stay reachable from /proof, /verify and /design now that the
+ * record itself is accepted-only.
+ */
+export function getTamperTests(): DecisionEntry[] {
+  return ensure().tamperTests;
+}
+
+function getTamperSource(txHash: string): TamperSource | undefined {
+  return ensure().tamperSources.get(txHash.toLowerCase());
+}
+
+/**
  * The canonical green/red pair used by the landing showcase, /proof and
  * <ByteDiffReveal>. Both carry their respData bytes.
+ *
+ * The green is a real accepted ledger entry; the red is the tamper test that
+ * replays it. `agent` attributes the GREEN only (D14).
  */
 export function getShowcasePair(): { green: DecisionEntry; red: DecisionEntry; agent: Agent } {
   const agent = getAgents().find((a) => a.tokenId === '1');
-  const list = getEntriesFor('1');
-  const green = list.find((e) => e.txHash === GREEN_TX);
-  const red = list.find((e) => e.txHash === RED_TX);
+  const green = getEntriesFor('1').find((e) => e.txHash === GREEN_TX);
+  const red = getTamperTests().find((e) => e.txHash === RED_TX);
   if (!agent || !green || !red) {
     throw new Error('fixtures: canonical showcase pair is missing');
   }
   return {
     agent,
-    green: { ...green, ...getRespDataFor('1', green) },
-    red: { ...red, ...getRespDataFor('1', red) },
+    green: { ...green, ...getRespDataFor(green, '1') },
+    red: { ...red, ...getRespDataFor(red) },
   };
 }
 
-/** Stress fixture for the §5.4 "graceful with 10k" requirement. */
+/** Stress fixture for the §5.4 "graceful with 10k" requirement. Accepted-only. */
 export function getStressEntries(count = 10_000): DecisionEntry[] {
   return generateEntries({
     tokenId: '1',
@@ -472,38 +585,40 @@ export function getStressEntries(count = 10_000): DecisionEntry[] {
     count,
     epoch: 1,
     strategyHash: STRATEGY_1,
-    rejects: ALL_REJECT_REASONS,
     startedAt: '2026-07-01T00:00:00.000Z',
   });
 }
 
 /* ── Listings / grants / settlements / audit grants ───────────────────────── */
 
+const DAY_SECONDS = 86_400;
+
 export function getListings(): Listing[] {
+  // v1.1 Q3: the term is seconds on-chain (RentalDesk.list takes termSeconds),
+  // so it is stored that way here rather than converted at the boundary.
+  // maxDecisions is deliberately absent — it is derived at rent time from the
+  // escrow the renter actually posts.
   return [
     {
       tokenId: '1',
       feePerDecisionWei: '10000000000000000',
       minEscrowWei: '100000000000000000',
       active: true,
-      termDays: 30,
-      maxDecisions: 200,
+      termSeconds: 30 * DAY_SECONDS,
     },
     {
       tokenId: '2',
       feePerDecisionWei: '4000000000000000',
       minEscrowWei: '50000000000000000',
       active: true,
-      termDays: 14,
-      maxDecisions: 120,
+      termSeconds: 14 * DAY_SECONDS,
     },
     {
       tokenId: '3',
       feePerDecisionWei: '2000000000000000',
       minEscrowWei: '20000000000000000',
       active: false,
-      termDays: 7,
-      maxDecisions: 60,
+      termSeconds: 7 * DAY_SECONDS,
     },
   ];
 }
@@ -536,23 +651,29 @@ const PROTOCOL_FEE_BPS = 200; // PRD §13
 export function getSettlements(tokenId: string): Settlement[] {
   const listing = getListings().find((l) => l.tokenId === tokenId);
   if (!listing) return [];
-  const entries = getEntriesFor(tokenId).filter(
-    (e) => e.status === 'accepted' && e.renter !== ZERO_ADDRESS,
-  );
+  // Ledgers are accepted-only (v1.1 Q1), so the only filter that matters is
+  // whether the entry is attributed to a renter — settle() pulls the fee per
+  // accepted entry whose renter matches the grant (PRD §5 RentalDesk).
+  const entries = getEntriesFor(tokenId).filter((e) => e.renter !== ZERO_ADDRESS);
 
-  return entries.slice(0, 40).map((e, i) => {
+  return entries.slice(0, 40).flatMap((e, i) => {
+    // entryIndex is non-null for every stored entry by construction; the guard
+    // exists because the type allows null and settle() is index-addressed.
+    if (e.entryIndex === null) return [];
     const fee = BigInt(listing.feePerDecisionWei);
     const protocolFee = (fee * BigInt(PROTOCOL_FEE_BPS)) / 10_000n;
-    return {
-      tokenId,
-      entryIndex: e.index,
-      renter: e.renter,
-      feeWei: fee.toString(),
-      protocolFeeWei: protocolFee.toString(),
-      netToOwnerWei: (fee - protocolFee).toString(),
-      settled: i < 28,
-      ...(i < 28 ? { txHash: e.txHash } : {}),
-    };
+    return [
+      {
+        tokenId,
+        entryIndex: e.entryIndex,
+        renter: e.renter,
+        feeWei: fee.toString(),
+        protocolFeeWei: protocolFee.toString(),
+        netToOwnerWei: (fee - protocolFee).toString(),
+        settled: i < 28,
+        ...(i < 28 ? { txHash: e.txHash } : {}),
+      },
+    ];
   });
 }
 

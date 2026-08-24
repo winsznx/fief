@@ -28,14 +28,49 @@ export function formatOg(wei: string, dp = 4): string {
   return fracStr.length > 0 ? `${whole}.${fracStr}` : whole.toString();
 }
 
-/** Percentage with no trailing .00 — 100 stays "100", 99.96 stays "99.96". */
-export function formatPct(pct: number): string {
-  return Number.isInteger(pct) ? String(pct) : pct.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-}
+/*
+ * There is deliberately NO percentage formatter.
+ *
+ * v1.1 (Q1) removed every fraction from the UI: `brainBoundPct` is gone and
+ * `Agent.verified` is the literal `true`, so a ratio cannot be derived from the
+ * data (D15). `formatPct` was deleted rather than left unused — an available
+ * helper is an invitation to reintroduce the number it formats.
+ */
 
 /** Fixed-width confidence/size rendering: 0.72 → "0.72" */
 export function formatUnit(value: number): string {
   return value.toFixed(2);
+}
+
+/**
+ * A rental term in seconds → human duration: 2592000 → "30 days".
+ *
+ * v1.1 Q3 stores the term as seconds because that is what
+ * `RentalDesk.list(…, termSeconds)` takes. Rendering the raw seconds would be
+ * unreadable, and converting at the data layer would lose fidelity, so the
+ * conversion lives here — one place, used by both the rent flow and the console.
+ */
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '—';
+
+  const units: [label: string, size: number][] = [
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ];
+
+  for (const [label, size] of units) {
+    if (seconds >= size) {
+      const n = Math.floor(seconds / size);
+      const rest = seconds % size;
+      const head = `${n} ${label}${n === 1 ? '' : 's'}`;
+      // Exact terms are the common case (30 days). Anything ragged is reported
+      // as an approximation rather than silently rounded to a wrong number.
+      return rest === 0 ? head : `~${head}`;
+    }
+  }
+
+  return `${seconds} second${seconds === 1 ? '' : 's'}`;
 }
 
 const DATE_FMT = new Intl.DateTimeFormat('en-GB', {
@@ -84,4 +119,17 @@ export function formatRelativeExpiry(iso: string, now: number = Date.now()): str
   if (hours >= 1) return `in ${hours} hour${hours === 1 ? '' : 's'}`;
   const mins = Math.max(1, Math.floor(ms / 60_000));
   return `in ${mins} minute${mins === 1 ? '' : 's'}`;
+}
+
+/**
+ * Renders an approved claim fragment as a standalone sentence.
+ *
+ * The APPROVED.* constants are deliberately lowercase because their canonical
+ * use is joined mid-sentence (`{sealed}; {attested}; {audit}.`). Rendered as
+ * standalone bullets they began lowercase, which reads as a truncation bug. This
+ * capitalises the first character only, so the approved wording — which is
+ * reviewed copy and must not be paraphrased — is otherwise untouched.
+ */
+export function asSentence(fragment: string): string {
+  return fragment.charAt(0).toUpperCase() + fragment.slice(1);
 }

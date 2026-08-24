@@ -59,6 +59,11 @@ export const HONEST_STATUS = {
   mockDetail:
     'This deployment reads a local mock data source. No decisions have been recorded on 0G mainnet from this build.',
   liveLabel: 'Live on 0G mainnet',
+  /**
+   * v1.1 Q1 — replaces "100% brain-bound". Every stored entry passed the
+   * on-chain check by invariant I1, so the honest claim is a state, not a ratio.
+   */
+  verified: 'verified',
 } as const;
 
 export const LIMITS = {
