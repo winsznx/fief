@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Space_Grotesk } from 'next/font/google';
+import { Footer } from '@/components/fief/footer';
+import { NetworkGuard } from '@/components/fief/network-guard';
+import { TopNav } from '@/components/fief/top-nav';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -13,20 +16,45 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+/**
+ * Display face (D19).
+ *
+ * Only the weights actually used are requested — 500 for display type and 600
+ * for the wordmark — because each additional weight is another font file on the
+ * critical path for text that is above the fold.
+ */
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+  weight: ['500', '600'],
+});
+
 export const metadata: Metadata = {
-  title: 'Fief',
+  title: {
+    default: 'Fief',
+    template: '%s · Fief',
+  },
   description:
     'Rent or buy a trading agent whose track record is signed by its own sealed brain.',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
+    // `dark` is no longer hardcoded — next-themes owns the class (D7). It
+    // injects a blocking script to set it before paint, so there is no FOUC;
+    // suppressHydrationWarning covers the class the server cannot know.
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
-        <Providers>{children}</Providers>
+        <Providers>
+          <TopNav />
+          <NetworkGuard />
+          <div className="flex flex-1 flex-col">{children}</div>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

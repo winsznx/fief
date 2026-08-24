@@ -29,6 +29,9 @@ Thumbs.db
 # Qwen Code local settings (tool-local, not part of the product)
 .qwen/
 
+# Kilo agent-manager worktrees + session state (tool-local, not part of the product)
+.kilo/
+
 # NOTE: /internal/ is intentionally TRACKED for now so collaborators have full context.
 # Per PRD §15 it is slated to be gitignored before public launch. Its history will
 # persist in git, so decide on a history scrub (or keep the repo private) before then.

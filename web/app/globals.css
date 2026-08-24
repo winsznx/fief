@@ -4,14 +4,66 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+   Fief design tokens
+   ---------------------------------------------------------------------------
+   D1  Monochrome + green/red only. `accepted` and `rejected` are the ONLY
+       saturated colours in the product. Everything else is neutral.
+   D11 Green/red are reserved EXCLUSIVELY for provenance (Accepted/Rejected).
+       P&L, sparkline value lines and every chart render neutral grey, so a
+       rising P&L can never be mistaken for a verified claim.
+   D8  Colour is never the sole carrier of the Accepted/Rejected semantic.
+       See <StatusPill> / <DecisionReceipt>: icon + label + border weight +
+       fill density are all redundant encodings. Acceptance test: a greyscale
+       screenshot must still read correctly.
+
+   D19 TWO-TEMPERATURE NEUTRALS (warm cream on cool noir).
+       The neutral ramp was stock-shadcn achromatic — every token literally
+       `oklch(L 0 0)`. Correct, and characterless: pure grey reads as an
+       unstyled scaffold.
+
+       The ramp is now warm on one side and cool on the other: paper/ink text
+       at hue ~85 (cream), ground at hue ~280 (noir). Chroma is capped at
+       0.02, which is ~1/10th of the semantic green's 0.19 — a TEMPERATURE,
+       not a hue. D1 says monochrome and forbids a competing brand colour; a
+       0.018-chroma off-white cannot compete with a 0.19-chroma green, so the
+       intent of D1 (nothing rivals the provenance semantic) is preserved.
+       This is deliberately NOT the same thing as adopting an accent hue —
+       see the note on `--primary` below.
+   --------------------------------------------------------------------------- */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  /* Referenced through the variables next/font owns rather than by literal
+     family name. Both work in this version — next/font here declares the face
+     literally (`--font-geist-sans: "Geist", "Geist Fallback"`, verified in the
+     emitted CSS) — but the literal spelling is an implementation detail of
+     next/font that a version bump is free to change to a hashed name, and a
+     silent fallback to `ui-sans-serif` is close enough to Geist that nobody
+     would notice for weeks. The indirection cannot drift. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* Geometric display face for the hero, section headings and the wordmark.
+     Geist is an excellent UI face but it is the SAME face as the body copy, so
+     headings previously differed from paragraphs only by size and weight —
+     which is what made large type read as "big body text" rather than display
+     type. Space Grotesk's tighter apertures and squarer bowls give the hero a
+     voice of its own while staying in the same neutral, engineered register. */
+  --font-heading: var(--font-space-grotesk), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Semantic triads (plan §2.1). One token per semantic is insufficient:
+     light-mode --accepted on white is ~3:1 and fails AA for body text, so
+     each semantic gets a dedicated AA-compliant `-fg` role per theme. */
   --color-accepted: var(--accepted);
+  --color-accepted-fg: var(--accepted-fg);
+  --color-accepted-surface: var(--accepted-surface);
+  --color-accepted-border: var(--accepted-border);
   --color-rejected: var(--rejected);
+  --color-rejected-fg: var(--rejected-fg);
+  --color-rejected-surface: var(--rejected-surface);
+  --color-rejected-border: var(--rejected-border);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -28,6 +80,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -41,86 +94,187 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Three radii, stated literally rather than derived from one seed.
+     Deriving them from `--radius` meant every value was a non-round number
+     (0.6 x 0.625rem = 6px, 1.4 x = 14px) and no element in the product actually
+     landed on the intended step.
+
+       sm  8px   badges, tags, status pills
+       lg  12px  buttons, inputs, the interactive scale
+       xl  16px  cards, panels
+
+     md/2xl exist only because shadcn primitives reference them. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 1.75rem;
+
+  /* VERTICAL RHYTHM — three steps, no improvisation.
+     Sections previously carried whatever padding each one was written with
+     (py-4, py-12, py-14, mt-16), which is why the page had dead voids in some
+     places and cramped joins in others.
+
+       section  112px  between major page sections
+       group     64px  between related groups inside a section
+       item      24px  between elements inside a group */
+  --spacing-section: 7rem;
+  --spacing-group: 4rem;
+  --spacing-item: 1.5rem;
+
+  /* Fixed ledger row height — required by @tanstack/react-virtual (plan §2.2).
+     Detail is a route/sheet (D9), never an inline expand, so rows stay fixed. */
+  --spacing-row: 2.25rem;
+
+  /* Single page measure. Every route and every section inside a route shares
+     this one value, so the hero h1, the showcase receipts and the ledger all
+     land on the same left/right edge. Previously sections mixed 1200px and
+     1440px, which read as misalignment rather than emphasis — a wider section
+     is achieved with `bleed` background tone, never a wider content measure. */
+  --container-page: 80rem;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Warm paper, cool ink (D19). Chroma ≤ 0.02 throughout. */
+  --background: oklch(0.988 0.005 85);
+  --foreground: oklch(0.17 0.006 280);
+  --card: oklch(1 0.003 85);
+  --card-foreground: oklch(0.17 0.006 280);
+  --popover: oklch(1 0.003 85);
+  --popover-foreground: oklch(0.17 0.006 280);
+  /* Primary is INK, not an accent hue. The primary button is ink-on-paper in
+     light and cream-on-noir in dark — an inversion of the page, which is why
+     it reads as emphatic without introducing a third colour (D1). */
+  --primary: oklch(0.19 0.006 280);
+  --primary-foreground: oklch(0.985 0.005 85);
+  --secondary: oklch(0.955 0.006 85);
+  --secondary-foreground: oklch(0.19 0.006 280);
+  --muted: oklch(0.958 0.006 85);
+  --muted-foreground: oklch(0.5 0.008 280);
+  --accent: oklch(0.955 0.006 85);
+  --accent-foreground: oklch(0.19 0.006 280);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.17 0.006 280 / 11%);
+  --border-strong: oklch(0.17 0.006 280 / 18%);
+  --input: oklch(0.17 0.006 280 / 13%);
+  --ring: oklch(0.5 0.008 280);
+
+  /* D11 — charts stay greyscale so they can never read as provenance. Kept
+     achromatic on purpose: the neutral ramp carries a temperature, but a DATA
+     line must not, or a warm line could be read as a tinted signal. */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.975 0.006 85);
+  --sidebar-foreground: oklch(0.17 0.006 280);
+  --sidebar-primary: oklch(0.19 0.006 280);
+  --sidebar-primary-foreground: oklch(0.985 0.005 85);
+  --sidebar-accent: oklch(0.955 0.006 85);
+  --sidebar-accent-foreground: oklch(0.19 0.006 280);
+  /* Chrome tones. Baked alpha rather than color-mix(): Lightning CSS compiles
+     color-mix into a bare `var(--foreground)` fallback plus an @supports
+     override, so a browser without color-mix would paint these SOLID cream.
+     Explicit alpha has no fallback path to get wrong. */
+  --scroll-thumb: oklch(0.17 0.006 280 / 16%);
+  --scroll-thumb-hover: oklch(0.17 0.006 280 / 30%);
+
+  /* Surface system. Solid fills only — see `.surface` for why the gradient,
+     blur and shadow were removed. */
+  --surface-raised: oklch(0.17 0.006 280 / 5%);
+  --surface-flat-fill: oklch(1 0 0 / 55%);
+  --surface-flat-border: oklch(0.17 0.006 280 / 14%);
+
+  /* Semantic triads — light. `--accepted` / `--rejected` keep their original
+     values for fills and strokes; `-fg` is darkened to reach AA on white.
+     Border alpha is 55% rather than 40%: composited over a white background,
+     40% measured 1.38:1 / 1.47:1 and failed the 1.5:1 non-text minimum.
+     Verify with `pnpm contrast`. */
   --accepted: oklch(0.627 0.194 149.2);
+  --accepted-fg: oklch(0.45 0.13 150);
+  --accepted-surface: oklch(0.627 0.194 149.2 / 10%);
+  --accepted-border: oklch(0.627 0.194 149.2 / 55%);
   --rejected: oklch(0.577 0.245 27.325);
+  --rejected-fg: oklch(0.45 0.19 26);
+  --rejected-surface: oklch(0.577 0.245 27.325 / 10%);
+  --rejected-border: oklch(0.577 0.245 27.325 / 55%);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Deep cool noir ground, warm cream text (D19).
+     The previous background was oklch(0.145 0 0) — a mid-charcoal that left no
+     room BELOW it, so `card` had to go lighter and the whole page compressed
+     into two nearly identical greys. Dropping the ground to 0.125 opens a real
+     four-step surface ramp: ground → card → muted → raised border. */
+  --background: oklch(0.125 0.006 280);
+  --foreground: oklch(0.935 0.018 85);
+  --card: oklch(0.165 0.006 280);
+  --card-foreground: oklch(0.935 0.018 85);
+  --popover: oklch(0.175 0.006 280);
+  --popover-foreground: oklch(0.935 0.018 85);
+  /* Cream on noir — the inverted page, matching light's ink on paper. */
+  --primary: oklch(0.935 0.018 85);
+  --primary-foreground: oklch(0.145 0.006 280);
+  --secondary: oklch(0.235 0.006 280);
+  --secondary-foreground: oklch(0.935 0.018 85);
+  --muted: oklch(0.225 0.006 280);
+  --muted-foreground: oklch(0.72 0.014 85);
+  --accent: oklch(0.235 0.006 280);
+  --accent-foreground: oklch(0.935 0.018 85);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+
+  /* Hairlines are CREAM at low alpha, not white: a neutral-white hairline over
+     a cool ground reads faintly blue against warm text. Raised from the
+     scaffold's /10% — too faint to delineate a data-dense ledger (plan §2.2). */
+  --border: oklch(0.935 0.018 85 / 13%);
+  --border-strong: oklch(0.935 0.018 85 / 22%);
+  --input: oklch(0.935 0.018 85 / 15%);
+  --ring: oklch(0.72 0.014 85);
+
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+
+  --sidebar: oklch(0.165 0.006 280);
+  --sidebar-foreground: oklch(0.935 0.018 85);
+  /* Was oklch(0.488 0.243 264.376) — a blue-violet leftover from the neutral
+     base and the only chromatic non-semantic colour in the file. Neutralised
+     to satisfy D1. */
+  --sidebar-primary: oklch(0.935 0.018 85);
+  --sidebar-primary-foreground: oklch(0.165 0.006 280);
+  --sidebar-accent: oklch(0.235 0.006 280);
+  --sidebar-accent-foreground: oklch(0.935 0.018 85);
+  --sidebar-border: oklch(0.935 0.018 85 / 13%);
+  --sidebar-ring: oklch(0.72 0.014 85);
+
+  /* Atmosphere reads slightly stronger on the dark ground: the same alpha over
+     a deep field is much less visible than over paper. */
+  --scroll-thumb: oklch(0.935 0.018 85 / 14%);
+  --scroll-thumb-hover: oklch(0.935 0.018 85 / 26%);
+
+  /* Surface system (D20) — cream-tinted glass on the noir ground. */
+  /* Single raised fill. Used for card hover and chip interiors — the brief's
+     `hover:bg-white/10` in token form. */
+  --surface-raised: oklch(0.935 0.018 85 / 6%);
+  --surface-flat-fill: oklch(0.935 0.018 85 / 2%);
+  --surface-flat-border: oklch(0.935 0.018 85 / 18%);
+
+  /* Semantic triads — dark. */
   --accepted: oklch(0.765 0.177 149.2);
+  --accepted-fg: oklch(0.83 0.17 150);
+  --accepted-surface: oklch(0.765 0.177 149.2 / 12%);
+  --accepted-border: oklch(0.765 0.177 149.2 / 45%);
   --rejected: oklch(0.704 0.191 22.216);
+  --rejected-fg: oklch(0.78 0.17 24);
+  --rejected-surface: oklch(0.704 0.191 22.216 / 12%);
+  --rejected-border: oklch(0.704 0.191 22.216 / 45%);
 }
 
 @layer base {
@@ -129,8 +283,303 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Contextual alternates + straight-sided digits. This is most of what
+       separates "system font at default settings" from a typeset interface. */
+    font-feature-settings: "ss01" 1, "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
+  }
+
+  /* Every mono surface in the product is a NUMBER or a HASH, so tabular
+     figures and a slashed zero are correct globally rather than opt-in — a
+     hash with an ambiguous 0/O is a legibility bug in a provenance product. */
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono {
+    font-feature-settings: "tnum" 1, "zero" 1, "ss01" 1;
+  }
+
+  /* Cream/ink selection rather than the UA's blue — the only place a browser
+     default would otherwise inject a hue the design system forbids (D1). */
+  ::selection {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  /* Hairline scrollbars in the neutral family. */
+  * {
+    scrollbar-color: var(--scroll-thumb) transparent;
+    scrollbar-width: thin;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scroll-thumb-hover);
+    background-clip: padding-box;
+  }
+}
+
+@layer utilities {
+  /* Tabular numerals. Applied to every numeric/hash cell so virtualized
+     ledger rows do not jitter as values change (plan §2.3). */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Mono eyebrow / section label (plan §2.3). */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* ── Display type ───────────────────────────────────────────────────────
+     Two scales, not one. `.display` was previously used for BOTH the landing
+     hero and interior page titles, which forces a compromise: large enough for
+     a hero makes "Dashboard" shout, and small enough for "Dashboard" makes the
+     hero timid. Interior titles keep `.display`; the landing and /proof use
+     `.display-hero`.
+
+     Both use the heading face at weight 500 — large geometric type needs LESS
+     weight, not more, and 600 at 76px reads as heavy rather than confident. */
+  /* Section headers — 32px to 48px. */
+  .display {
+    font-family: var(--font-heading);
+    font-feature-settings: 'ss02' 1, 'ss05' 1;
+    font-size: clamp(2rem, 3.4vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-weight: 500;
+  }
+
+  /* Hero — 44px on a phone to 88px on a desktop. The single largest thing on
+     the page, by a wide margin; the squint test depends on it. `text-wrap:
+     balance` is dropped because the hero is left-aligned now and balancing a
+     left-aligned headline produces ragged short lines. */
+  .display-hero {
+    font-family: var(--font-heading);
+    font-feature-settings: 'ss02' 1, 'ss05' 1;
+    font-size: clamp(2.75rem, 6.5vw, 5.5rem);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+    font-weight: 500;
+  }
+
+  /* Card headlines — 24px to 30px. */
+  .heading-card {
+    font-family: var(--font-heading);
+    font-feature-settings: 'ss02' 1, 'ss05' 1;
+    font-size: clamp(1.5rem, 2vw, 1.875rem);
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    font-weight: 500;
+  }
+
+  /* Oversized type for the projector-legible `showcase` receipt variant. */
+  .display-showcase {
+    font-family: var(--font-heading);
+    font-size: clamp(1.375rem, 2.2vw, 1.875rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+
+  /* Page-header description. The reference ships 13px here; Fief was shipping
+     18px (`text-lg`), which is most of why interior pages read as zoomed in. */
+  .page-lede {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--muted-foreground);
+  }
+
+  /* Section headings — the step between `.display` and body copy. */
+  .heading {
+    font-family: var(--font-heading);
+    font-feature-settings: 'ss02' 1, 'ss05' 1;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+
+  /* ── Atmosphere: deliberately none ──────────────────────────────────────
+     This file previously carried `.grain`, `.ambient` (a fixed three-nebula wash
+     plus ~47 star pinpoints), `.vignette`, `.dot-grid` and `.fade-edges`. All
+     removed.
+
+     They were ported from a reference whose canvas is an animated aurora, and on
+     a product that is fundamentally a LEDGER they were decoration competing with
+     data for attention — precisely the failure mode of treating everything as
+     equally important. The background's job here is to disappear: one solid
+     value, so the only things with visual weight on the page are the headline,
+     the proof outcome and the primary action.
+
+     If a section ever needs to separate itself from the page, the lever is a
+     one-step tone change on a solid fill, never a texture. */
+
+  /* ── Surfaces (D20) ─────────────────────────────────────────────────────
+     `.surface` is the default card. `.surface-lift` adds the hover response.
+     `.surface-flat` is the deliberate opt-out for DENSE DATA — a virtualized
+     ledger or a settlement table gets no gradient and no shadow, because
+     translucency behind 10k rows costs legibility for decoration and the rows
+     are the figure, not the panel. */
+  /* `.surface` is the one card treatment in the product.
+
+     Solid fill, one hairline, 16px radius. No gradient, no backdrop blur, no
+     drop shadow: a previous revision carried all three (a top-lit gradient, a
+     20px blur with 140% saturate, and a double inset plus a 60px shadow) copied
+     from a glass-morphism reference. On a solid background none of it survives
+     the squint test — it produced grey mush that read as neither flat nor raised,
+     and the blur cost a compositing layer per card.
+
+     Separation now comes from the fill step alone: `--card` sits one measured
+     step above `--background` in both themes, which is legible at a glance and
+     free to paint. */
+  .surface {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+  }
+
+  /* Hover is a fill change and nothing else — no lift, no scale, no glow. */
+  .surface-lift {
+    transition: background-color 160ms ease, border-color 160ms ease;
+  }
+  .surface-lift:hover {
+    background-color: var(--surface-raised);
+    border-color: var(--border-strong);
+  }
+
+  /* Dense-data counterpart: near-flat fill with a MORE visible hairline than a
+     card, because here the rule is doing the work of graph paper. Tabular data,
+     ticker strips, the virtualized ledger. */
+  .surface-flat {
+    background-color: var(--surface-flat-fill);
+    border: 1px solid var(--surface-flat-border);
+    border-radius: var(--radius-lg);
+  }
+  .surface-flat-hover {
+    transition: background-color 160ms ease, border-color 160ms ease;
+  }
+  .surface-flat-hover:hover {
+    background-color: var(--surface-raised);
+    border-color: var(--border-strong);
+  }
+
+  /* Icon chip — the reference's `h-8 w-8 rounded-xl border bg-white/[0.03]`.
+     Gives a stat card a second focal point so the number is not floating. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-raised);
+    color: var(--muted-foreground);
+  }
+
+  /* Big tabular figure. The reference anchors every panel on a 28px mono
+     number; Fief was rendering its numbers at body size, which is why the pages
+     had no focal point. */
+  .figure {
+    font-family: var(--font-mono);
+    font-size: 1.75rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+  .figure-lg {
+    font-family: var(--font-mono);
+    font-size: clamp(2rem, 3.4vw, 3rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+
+  /* Page measure. Applied as a utility so a route cannot silently pick its own
+     width — see --container-page. */
+  .container-page {
+    width: 100%;
+    max-width: var(--container-page);
+    margin-inline: auto;
+  }
+
+}
+
+/* ---------------------------------------------------------------------------
+   Scroll-driven reveal
+   ---------------------------------------------------------------------------
+   Sections settle in as they enter the viewport, which is what separates a
+   product surface from a static document. Deliberately CSS-only: no observer,
+   no client component, no hydration cost, and nothing to run on the main
+   thread during scroll.
+
+   Two hard guards, because the failure mode of a reveal is invisible content:
+     1. @supports — browsers without `animation-timeline: view()` (Safari and
+        Firefox at time of writing) never receive `opacity: 0`, so the default
+        rendering is fully visible.
+     2. prefers-reduced-motion: no-preference — the blanket reduce block below
+        neutralises duration, but a view() timeline is not duration-driven, so
+        the opt-in has to be explicit here.
+   --------------------------------------------------------------------------- */
+
+@keyframes fief-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    @layer utilities {
+      .reveal {
+        animation: fief-reveal linear both;
+        animation-timeline: view();
+        /* Complete well before centre so content is never mid-fade while
+           being read. */
+        animation-range: entry 0% entry 45%;
+      }
+    }
+  }
+}
+
+/* Motion budget: every animation in the product must be gated on this.
+   Handoff §3 / §10 require reduced-motion support. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
