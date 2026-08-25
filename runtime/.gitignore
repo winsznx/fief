@@ -1,1 +1,4 @@
 node_modules/
+# Local demo renter keypair. Funded with dust for the P4.5 rental proof;
+# never an operator or treasury key, but still a key.
+.renter.json

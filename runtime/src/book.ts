@@ -11,7 +11,7 @@ import {createPublicClient, createWalletClient, defineChain, http} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';
 import type {Hex as ViemHex, PublicClient, WalletClient} from 'viem';
 
-import {epochBookAbi, fiefAgentAbi, recordBookAbi} from './abi.js';
+import {epochBookAbi, fiefAgentAbi, recordBookAbi, rentalDeskAbi} from './abi.js';
 import type {Deployment} from './config.js';
 
 export interface EpochSpecArgs {
@@ -68,6 +68,26 @@ export class BookClient {
       functionName: functionName as never,
       args: args as never,
       account: this.account,
+    });
+    const hash = await this.wallet.writeContract(request as never);
+    await this.pub.waitForTransactionReceipt({hash, timeout: 120_000});
+    return hash;
+  }
+
+  private async sendValue(
+    address: ViemHex,
+    abi: readonly unknown[],
+    functionName: string,
+    args: readonly unknown[],
+    value: bigint,
+  ): Promise<ViemHex> {
+    const {request} = await this.pub.simulateContract({
+      address,
+      abi: abi as never,
+      functionName: functionName as never,
+      args: args as never,
+      account: this.account,
+      value,
     });
     const hash = await this.wallet.writeContract(request as never);
     await this.pub.waitForTransactionReceipt({hash, timeout: 120_000});
@@ -250,6 +270,22 @@ export class BookClient {
     })) as ViemHex;
   }
 
+  /** The sealed commitment the chain holds for a slot, before any reveal. */
+  async commitOf(agentId: bigint, epochId: bigint, slot: number) {
+    return (await this.pub.readContract({
+      address: this.deployment.recordBook,
+      abi: recordBookAbi,
+      functionName: 'commitOf',
+      args: [agentId, epochId, slot],
+    })) as {
+      reqSha: ViemHex;
+      respSha: ViemHex;
+      receiptCommit: ViemHex;
+      provider: ViemHex;
+      committedAt: bigint;
+    };
+  }
+
   async isRevealed(agentId: bigint, epochId: bigint, slot: number) {
     return (await this.pub.readContract({
       address: this.deployment.recordBook,
@@ -257,6 +293,75 @@ export class BookClient {
       functionName: 'isRevealed',
       args: [agentId, epochId, slot],
     })) as boolean;
+  }
+
+  /* -------------------------------- rental --------------------------------- */
+
+  list(agentId: bigint, feePerDecisionWei: bigint, minEscrowWei: bigint, termSeconds: bigint) {
+    return this.send(this.deployment.rentalDesk, rentalDeskAbi, 'list', [
+      agentId,
+      feePerDecisionWei,
+      minEscrowWei,
+      termSeconds,
+    ]);
+  }
+
+  rent(agentId: bigint, epochId: bigint, valueWei: bigint) {
+    return this.sendValue(
+      this.deployment.rentalDesk,
+      rentalDeskAbi,
+      'rent',
+      [agentId, epochId],
+      valueWei,
+    );
+  }
+
+  settle(agentId: bigint, renter: ViemHex, slots: number[]) {
+    return this.send(this.deployment.rentalDesk, rentalDeskAbi, 'settle', [agentId, renter, slots]);
+  }
+
+  withdraw() {
+    return this.send(this.deployment.rentalDesk, rentalDeskAbi, 'withdraw', []);
+  }
+
+  async withdrawable(payee: ViemHex): Promise<bigint> {
+    return (await this.pub.readContract({
+      address: this.deployment.rentalDesk,
+      abi: rentalDeskAbi,
+      functionName: 'withdrawable',
+      args: [payee],
+    })) as bigint;
+  }
+
+  async grantOf(agentId: bigint, renter: ViemHex) {
+    return (await this.pub.readContract({
+      address: this.deployment.rentalDesk,
+      abi: rentalDeskAbi,
+      functionName: 'grantOf',
+      args: [agentId, renter],
+    })) as {
+      epochId: bigint;
+      expiry: bigint;
+      maxDecisions: number;
+      settledCount: number;
+      escrowedWei: bigint;
+      remainingWei: bigint;
+      settledWei: bigint;
+      refundedWei: bigint;
+      paused: boolean;
+    };
+  }
+
+  /** Plain value transfer, used to fund the demo renter wallet. */
+  async sendNative(to: ViemHex, valueWei: bigint): Promise<ViemHex> {
+    const hash = await this.wallet.sendTransaction({
+      account: this.account,
+      chain: this.chain,
+      to,
+      value: valueWei,
+    });
+    await this.pub.waitForTransactionReceipt({hash, timeout: 120_000});
+    return hash;
   }
 
   async now(): Promise<bigint> {

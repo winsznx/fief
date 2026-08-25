@@ -555,7 +555,26 @@ Reordered per patch.md: the commercial loop moves into Wave 3, because the pre-c
   | honest reveal after a tamper attempt | `0x02fb705977322b83107a8b37da4f5a8460d3f03cb7b1302afbc32e7085a4b161` |
 
   Testnet 16602 rehearsal on the same audited code: RecordBook `0x2F13E70b79cfFc330Df8cccfAc880149749698E1`, epoch 2/2 at 100%, adversarial 4/4.
-- **P4.5 - the rental loop.** `RentalDesk` live on mainnet, a real rental from a second wallet, renter feed delivering cleartext plus receipts, settlement on revealed slots, one ERC-8004 feedback on testnet gated by a real ServeProof. *Gate: a rental settled from a wallet that is not the deployer.*
+- **P4.5 - the rental loop. COMPLETE 2026-08-25.** The full commercial loop ran on mainnet from a wallet that is not the deployer.
+
+  Agent 6 listed at 0.0005 OG per decision. Renter `0xae8caDeDa5B0C762ECC2a242544A6A1b04Ebd40E`, a freshly generated keypair funded with dust, escrowed 0.002 OG for 4 decisions from its own signer. The agent then produced a decision **naming that renter in the commit line**, so the TEE signed a response bound to them, which is what lets `settle` prove the fee is owed.
+
+  **The step that matters:** the renter received the cleartext at commit time and verified it against the on-chain `receiptCommit` **before any reveal existed** (`payload opens the on-chain commitment: true`, `commit line names this renter: true`). That is the private phase working rather than being described. A renter never has to trust the feed.
+
+  Settlement consumed 0.0005 OG of the escrow (1/4 decisions, 0.0015 OG remaining) and credited the owner, who then withdrew. Pull payment throughout.
+
+  | step | tx |
+  |---|---|
+  | list | `0xbcc58d2054be40e6e62786afe00943549d4cbb99ba1bceaa490187c1d22b210b` |
+  | rent (from the renter's wallet) | `0x8ecc9978c206ce4072f4e744d70814fb568988ab31b0138ec615966e60d06ee1` |
+  | commit (sealed, bound to the renter) | `0x1c50b938bd21a11632c17a0ca1064e0039921566d8183d287d45b02393cb61d0` |
+  | reveal | `0x4a9bd0152d3a201aa8a1e323be5f0e074e534caf63a1fa7aba3e23126ac2cdcd` |
+  | settle | `0x5c7dcb515890142acbebf850956f014202f3e46c70833d0a56bb5902eab464ec` |
+  | withdraw | `0x7b3450bf363246e91184d18ab4873f18d5a5e610639f8fcc66322f0b87c1c94e` |
+
+  *Gate: a rental settled from a wallet that is not the deployer. Passed.*
+
+  Not yet done in this phase: the ERC-8004 feedback leg, which needs the testnet Agentic ID registries and a real `ServeProof`.
 - **P5 - submission.** README first screen, video to the §17 screenplay, X post, AKINDO fields, cold adversarial audit, clean-clone reproduction. *Gate: filed before the deadline. Stop: nothing new after code freeze.*
 
 **Wave 4 (deadline 2026-09-20).** The 100-plus-slot forward campaign with published completeness (rung 10); Agentic ID migration to mainnet if upstream ships; third-party strategy author onboarding, which is worth more than ten self-owned agents against the 10% traction axis; `fief verify` hardened as a first-class public product; second and third agents.

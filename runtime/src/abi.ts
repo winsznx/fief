@@ -165,6 +165,92 @@ export const epochBookAbi = [
   },
 ] as const;
 
+export const rentalDeskAbi = [
+  {
+    type: 'function',
+    name: 'list',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {name: 'agentId', type: 'uint256'},
+      {name: 'feePerDecisionWei', type: 'uint256'},
+      {name: 'minEscrowWei', type: 'uint256'},
+      {name: 'termSeconds', type: 'uint64'},
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'rent',
+    stateMutability: 'payable',
+    inputs: [{name: 'agentId', type: 'uint256'}, {name: 'epochId', type: 'uint64'}],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'settle',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {name: 'agentId', type: 'uint256'},
+      {name: 'renter', type: 'address'},
+      {name: 'slots', type: 'uint32[]'},
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'withdraw',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'withdrawable',
+    stateMutability: 'view',
+    inputs: [{name: 'payee', type: 'address'}],
+    outputs: [{type: 'uint256'}],
+  },
+  {
+    type: 'function',
+    name: 'grantOf',
+    stateMutability: 'view',
+    inputs: [{name: 'agentId', type: 'uint256'}, {name: 'renter', type: 'address'}],
+    outputs: [
+      {
+        type: 'tuple',
+        components: [
+          {name: 'epochId', type: 'uint64'},
+          {name: 'expiry', type: 'uint64'},
+          {name: 'maxDecisions', type: 'uint32'},
+          {name: 'settledCount', type: 'uint32'},
+          {name: 'escrowedWei', type: 'uint256'},
+          {name: 'remainingWei', type: 'uint256'},
+          {name: 'settledWei', type: 'uint256'},
+          {name: 'refundedWei', type: 'uint256'},
+          {name: 'paused', type: 'bool'},
+        ],
+      },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'listings',
+    stateMutability: 'view',
+    inputs: [{name: 'agentId', type: 'uint256'}],
+    outputs: [
+      {name: 'feePerDecisionWei', type: 'uint256'},
+      {name: 'minEscrowWei', type: 'uint256'},
+      {name: 'termSeconds', type: 'uint64'},
+      {name: 'active', type: 'bool'},
+    ],
+  },
+  {type: 'error', name: 'NothingToSettle', inputs: []},
+  {type: 'error', name: 'EscrowTooSmall', inputs: []},
+  {type: 'error', name: 'NotListed', inputs: []},
+  {type: 'error', name: 'GrantPausedError', inputs: []},
+  {type: 'error', name: 'NothingToWithdraw', inputs: []},
+] as const;
+
 export const recordBookAbi = [
   {
     type: 'function',
@@ -258,6 +344,28 @@ export const recordBookAbi = [
       {name: 'evidenceURI', type: 'string'},
     ],
     outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'commitOf',
+    stateMutability: 'view',
+    inputs: [
+      {name: 'agentId', type: 'uint256'},
+      {name: 'epochId', type: 'uint64'},
+      {name: 'slot', type: 'uint32'},
+    ],
+    outputs: [
+      {
+        type: 'tuple',
+        components: [
+          {name: 'reqSha', type: 'bytes32'},
+          {name: 'respSha', type: 'bytes32'},
+          {name: 'receiptCommit', type: 'bytes32'},
+          {name: 'provider', type: 'address'},
+          {name: 'committedAt', type: 'uint64'},
+        ],
+      },
+    ],
   },
   {
     type: 'function',
