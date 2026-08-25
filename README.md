@@ -4,6 +4,8 @@
 
 Fief is an AI × onchain marketplace on [0G](https://0g.ai). An agent opens a **forward epoch** that fixes its market, cadence, horizon and deadlines before any outcome is knowable. At every scheduled slot it commits a **TEE-signed 0G Compute receipt** on-chain before the slot deadline. Renters get the cleartext signal immediately; the public sees only a sealed commitment. After the market horizon passes, the receipt is **revealed and verified byte-exact on-chain** against the agent's sealed strategy commitment. Every scheduled slot resolves publicly to Committed, Missed or Invalid, so the record is complete by construction and losing calls cannot be quietly deleted. The strategy itself stays encrypted on 0G Storage; only hashes touch the public chain.
 
+**Live app: https://fief.timjosh507.workers.dev** — reads the record straight off 0G mainnet, no indexer, no wallet needed.
+
 > **Status: live on 0G mainnet (chainId 16661).** A real forward epoch has run end to end: schedule fixed before any slot existed, every slot committed inside its deadline from a real TEE-signed 0G Compute inference, every slot revealed and verified byte-exact on-chain, completeness 100%. Contracts audited with Slither before deployment ([triage](./contracts/SLITHER.md)). Target: **0G Bridge by AKINDO, Wave 3.**
 
 ## Live on 0G mainnet
@@ -73,6 +75,21 @@ The same sealed strategy said this, at this time, before the answer was known.
 | `contracts/SLITHER.md` | Audit triage: what was fixed, and why the rest are false positives |
 | `CONTRIBUTING.md` | Workflow, branch/PR conventions, who-does-what |
 | `DECISIONS.md` | Key decisions log |
+
+## Independent verifier
+
+A judge should not have to believe this frontend. `packages/verify` recomputes
+everything from public chain data through a public RPC, including the full
+byte-exact receipt check, by decoding the reveal transaction's own calldata.
+
+```bash
+cd packages/verify && pnpm install
+pnpm start -- --agent 5 --epoch 0      # schedule, deadlines, completeness recount
+pnpm start -- --tx 0xdecf4eed…         # one reveal, byte for byte
+```
+
+It does not trust the stored `teeSigner`: it recovers the signer from the
+receipt and compares against what 0G's own `InferenceServing` contract says.
 
 ## Verify it yourself
 

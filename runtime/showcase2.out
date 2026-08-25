@@ -1,0 +1,83 @@
+Detected mainnet (chain ID: 16661)
+network    mainnet (16661)
+operator   0xbF7EF900E2dB365455B91Fb133f78Fc70114Bf31
+balance    0.8995064249636542 OG
+
+[1] seal the strategy and upload to 0G Storage
+Starting upload for file of size: 534 bytes
+Upload options: {
+  tags: '0x',
+  submitter: '',
+  finalityRequired: true,
+  taskSize: 1,
+  expectedReplica: 1,
+  fragmentSize: 4294967296,
+  skipTx: false,
+  skipIfFinalized: true,
+  fee: 0n,
+  nonce: undefined,
+  onProgress: undefined,
+  encryption: undefined
+}
+First selected node status : {
+  connectedPeers: 8,
+  logSyncHeight: 42620842,
+  logSyncBlock: '0xb33662e2e82a2110b7fda98b6c2d4eb1d272d4c4bdb0d24d12729c3b3a747970',
+  nextTxSeq: 206654,
+  networkIdentity: {
+    chainId: 16661,
+    flowAddress: '0x62d4144db0f0a6fbbaeb6296c785c71b3d57c526',
+    p2pProtocolVersion: { major: 0, minor: 4, build: 0 }
+  }
+}
+Selected nodes: [
+  StorageNode {
+    url: 'http://34.71.110.60:5678',
+    timeout: 30000,
+    retry: 3
+  },
+  StorageNode {
+    url: 'http://34.169.236.186:5678',
+    timeout: 30000,
+    retry: 3
+  }
+]
+Using splitable upload (handles both single and fragment cases)
+File details - size: 534, numSegments: 1, numChunks: 3
+Data prepared to upload root=0x735f6362ecff622c87c40ea1281d625568c8c9f3f5f168ccfb4948231f53daca size=534 numSegments=1 numChunks=3
+Attempting to find existing file info by root hash...
+Submitting transaction with storage fee: 92200934886n
+Transaction submitted, hash: 0x3145495ab3f9158913b46c06b2577d7794d0aeb24ec437266c91e99e3f09d16e
+Wait for log entry on storage node
+Waiting for storage node to sync (height=42620850)...
+Waiting for storage node to sync (height=42620851)...
+Tasks created: [
+  [
+    {
+      clientIndex: 1,
+      taskSize: 1,
+      segIndex: 0,
+      numShard: 2,
+      txSeq: 206654
+    }
+  ]
+]
+Processing tasks in parallel with  1  tasks...
+All tasks processed
+Wait for log entry on storage node
+Single file upload completed - returning single result
+   H (strategy commitment) 0xf1b0fa278fd7f88d3dd985bdd7555eb722a1c3c6dd31a3106b3a9247b2714a4d
+   sealed blob             534 bytes AES-256-GCM
+   storage rootHash        0x735f6362ecff622c87c40ea1281d625568c8c9f3f5f168ccfb4948231f53daca
+   uploaded                0x3145495ab3f9158913b46c06b2577d7794d0aeb24ec437266c91e99e3f09d16e
+   blob key (keep safe)    0x39fbc5e9e01f97704fdc5af656e731c270aabc8317ba55e3e6666b38d5312f4c
+
+[2] register the agent
+   agentId 8   https://chainscan.0g.ai/tx/0x8b4775328c24f4b89a4afaaa39b440392b02399834eb71f8a631760bfea70bc0
+
+[3] open the forward epoch
+   schedule fixed at block time, startTime 1787681083
+   https://chainscan.0g.ai/tx/0x64debb3d29793601b515baea9dab5e04a461dff8e019b0783e6894f3ca7d1555
+
+[4] slot 0 — the GREEN pair
+   waiting 18s for slot 0's snapshot time
