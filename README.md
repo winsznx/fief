@@ -68,8 +68,31 @@ The same sealed strategy said this, at this time, before the answer was known.
 | `packages/reference/` | Executable reference model + fixtures the contract tests import |
 | `runtime/` | Slot scheduler, decision loop, `pnpm showcase` / `pnpm adversarial` |
 | `internal/seam/p0.2/` | Runnable spike proving the 0G Compute TEE-signature seam |
+| `ARCHITECTURE.md` | Sequence diagram, contracts, 0G component map, honest limits |
+| `SETUP.md` | Clean-clone reproduction; most of it needs no wallet |
+| `contracts/SLITHER.md` | Audit triage: what was fixed, and why the rest are false positives |
 | `CONTRIBUTING.md` | Workflow, branch/PR conventions, who-does-what |
 | `DECISIONS.md` | Key decisions log |
+
+## Verify it yourself
+
+No wallet needed for any of these.
+
+```bash
+# 242 tests from a clean clone
+git clone https://github.com/winsznx/fief.git && cd fief
+(cd packages/reference && pnpm install && pnpm verify)
+(cd contracts && forge install foundry-rs/forge-std --no-git && forge test)
+(cd web && pnpm install && pnpm verify)
+(cd runtime && pnpm install && pnpm verify)
+
+# The enclave key the contract will accept, read live from 0G's serving contract
+cast call 0x40eB003340f467e096F8Ae30f8696bE40Eba922c \
+  "expectedTeeSigner(address)(address)" 0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D \
+  --rpc-url https://evmrpc.0g.ai
+```
+
+Full steps in [SETUP.md](./SETUP.md).
 
 ## Honest-status discipline
 
