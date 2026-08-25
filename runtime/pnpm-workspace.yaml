@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+  blake-hash: true
+  keccak: true
+  secp256k1: true
+  bufferutil: true
+  utf-8-validate: true
+  es5-ext: true

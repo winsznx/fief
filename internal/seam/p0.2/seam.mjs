@@ -227,7 +227,11 @@ async function main() {
       { role: 'user', content: `Snapshot: ${snapshotStr}` },
     ],
     temperature: 0,
-    max_tokens: 256,
+    // Reasoning models (e.g. glm-5.2) spend this budget on reasoning tokens before
+    // emitting any content. At 256 the live run returned finish_reason=length with a
+    // single character of content, which looked like a model-compliance failure but was
+    // truncation. Keep generous headroom so the COMMIT_LINE echo can actually complete.
+    max_tokens: Number(process.env.MAX_TOKENS || '4096'),
     stream: false,
   };
   const bodyStr = JSON.stringify(body); // <-- these are the exact bytes we send + hash

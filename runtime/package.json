@@ -1,0 +1,27 @@
+{
+  "name": "@fief/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fief runtime: slot scheduler, decision loop, commit/reveal against 0G (PRD v2 \u00a712).",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "epoch": "tsx src/cli/run-epoch.ts",
+    "adversarial": "tsx src/cli/adversarial.ts",
+    "showcase": "tsx src/cli/showcase.ts"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
+    "@fief/reference": "file:../packages/reference",
+    "ethers": "^6.13.4",
+    "viem": "^2.55.18",
+    "@0gfoundation/0g-storage-ts-sdk": "1.2.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@11.21.0"
+}
