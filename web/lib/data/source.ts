@@ -1,3 +1,4 @@
+import { liveDataSource } from './live';
 import { mockDataSource } from './mock';
 import type { DataSource } from './types';
 
@@ -8,17 +9,14 @@ export function getDataMode(): DataMode {
 }
 
 /**
- * LiveDataSource is the owner's job. Until it exists, live mode falls back
- * to mock and logs once so a mistaken env var is obvious.
+ * Mock by default, live when explicitly asked.
+ *
+ * Live reads the real record off 0G mainnet through a public RPC: no indexer,
+ * no cache, so every number the UI shows can be reproduced with `cast`. Its
+ * mutations throw rather than returning an optimistic result, because the
+ * console has no wallet writes wired and a data layer that invents a
+ * transaction receipt would undermine the one thing this product sells.
  */
-let warnedLive = false;
-
 export function getDataSource(): DataSource {
-  if (getDataMode() === 'live') {
-    if (!warnedLive) {
-      console.warn('[fief] NEXT_PUBLIC_DATA_MODE=live but LiveDataSource is not wired; using mock.');
-      warnedLive = true;
-    }
-  }
-  return mockDataSource;
+  return getDataMode() === 'live' ? liveDataSource : mockDataSource;
 }
