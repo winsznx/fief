@@ -17,7 +17,7 @@
  *    at this record size and would add a trust hop between the chain and the UI.
  */
 
-import { createPublicClient, http, parseAbiItem } from 'viem';
+import { createPublicClient, defineChain, http, parseAbiItem } from 'viem';
 import type { Address, PublicClient } from 'viem';
 
 import { CHAIN_SCAN_TX } from '@/lib/chain/zerog';
@@ -66,7 +66,31 @@ const ADDR = {
  */
 const DEPLOY_BLOCK = BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK ?? '42582000');
 
-const client: PublicClient = createPublicClient({ transport: http(RPC) });
+/**
+ * 0G mainnet, with the two things that make this viable inside a Worker.
+ *
+ * `listAgents` needs one contract read per agent per field. Issued one at a
+ * time that is ~25 HTTP requests, which blows the Cloudflare subrequest limit
+ * and returns an empty marketplace with no error. Both fixes are verified
+ * against the live RPC: JSON-RPC batching coalesces calls into single HTTP
+ * requests, and Multicall3 is deployed at the canonical address so viem can
+ * aggregate reads into one call.
+ */
+const zeroG = defineChain({
+  id: 16661,
+  name: '0G',
+  nativeCurrency: { name: '0G', symbol: 'OG', decimals: 18 },
+  rpcUrls: { default: { http: [RPC] } },
+  contracts: {
+    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
+  },
+});
+
+const client: PublicClient = createPublicClient({
+  chain: zeroG,
+  transport: http(RPC, { batch: { wait: 8 } }),
+  batch: { multicall: true },
+});
 
 const EV = {
   registered: parseAbiItem(
@@ -110,7 +134,25 @@ const loadAgentIds = memo(async (): Promise<bigint[]> => {
     fromBlock: DEPLOY_BLOCK,
     toBlock: 'latest',
   });
-  return logs.map((l) => l.args.agentId as bigint).filter((id) => id !== undefined);
+  const ids = logs.map((l) => l.args.agentId as bigint).filter((id) => id !== undefined);
+
+  // An empty list here is almost always an RPC or block-range problem, not an
+  // empty registry, and rendering "no agents" would hide it. `nextAgentId` is a
+  // single cheap read that tells us how many should exist.
+  if (ids.length === 0) {
+    const next = (await client.readContract({
+      address: ADDR.fiefAgent,
+      abi: fiefAgentAbi,
+      functionName: 'nextAgentId',
+    })) as bigint;
+    if (next > 1n) {
+      throw new Error(
+        `live: log scan found 0 agents but nextAgentId is ${next}. ` +
+          `NEXT_PUBLIC_DEPLOY_BLOCK (${DEPLOY_BLOCK}) is probably too high.`,
+      );
+    }
+  }
+  return ids;
 });
 
 async function readEpochSummary(agentId: bigint, epochId: bigint): Promise<EpochSummary | null> {

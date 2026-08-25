@@ -11,7 +11,10 @@
     "copy-guard": "node scripts/copy-guard.mjs",
     "contrast": "node scripts/contrast.mjs",
     "test": "vitest run",
-    "verify": "pnpm lint && pnpm typecheck && pnpm copy-guard && pnpm contrast && pnpm test"
+    "verify": "pnpm lint && pnpm typecheck && pnpm copy-guard && pnpm contrast && pnpm test",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
@@ -31,6 +34,8 @@
     "viem": "^2.55.18"
   },
   "devDependencies": {
+    "@fief/reference": "file:../packages/reference",
+    "@opennextjs/cloudflare": "1.20.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -40,7 +45,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11",
-    "@fief/reference": "file:../packages/reference"
+    "wrangler": "^4.125.0"
   },
   "packageManager": "pnpm@11.21.0"
 }

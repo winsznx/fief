@@ -574,6 +574,32 @@ Reordered per patch.md: the commercial loop moves into Wave 3, because the pre-c
 
   *Gate: a rental settled from a wallet that is not the deployer. Passed.*
 
+### 16.1.1 Epoch parameters have a hard floor, discovered live
+
+`horizonSeconds + disclosureDelay` must exceed the worst-case inference latency,
+or there is no private phase to sell.
+
+The showcase run used `HORIZON=20, DISCLOSURE_DELAY=10`, a 30-second window,
+while a real glm-5.2 inference takes 28-43 seconds. Agent 5 slot 0 therefore has
+a private window of **-1 second**: the sealed commitment landed one second after
+its own disclosure window had already opened. Every cryptographic property still
+held, and the slot verifies byte-exact, but the thing the renter is paying for
+did not exist for a single second.
+
+Nothing in the contracts is wrong here. `commitDeadline` and `revealOpen` are
+independent by design, and a negative gap is legal. It is a parameter choice
+that quietly deletes the product's economics, which makes it worse than a bug:
+it looks fine on ChainScan.
+
+**Rule:** `disclosureDelay >= p99(inference latency) + commit tx time`, with the
+horizon set by the market rather than by the runtime. The forward campaign uses
+`HORIZON=300, DISCLOSURE_DELAY=60` and measures 323 seconds of real privacy per
+slot.
+
+**Consequence:** the canonical showcase pair must come from a slot with a real
+private window. Agent 5 demonstrates the verification but misrepresents the
+economics, so `NEXT_PUBLIC_GREEN_TX` points at the campaign instead.
+
 ### 16.2 ERC-8004 reputation - serve proofs proven, redemption scoped
 
 Fief can issue valid ERC-8004 serve proofs, and that is checked by 0G's code rather than ours: every assertion routes through the Agentic ID SDK's own `verifyServeProofSignature`. 7 unit tests in CI plus a live check (`pnpm reputation`, 6/6) against the production attestor.
