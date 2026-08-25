@@ -25,8 +25,8 @@ The canonical run (agent 5, epoch 0), all on mainnet:
 | agent registered with `H` + `storageRoot` | [`0x0b851c43…`](https://chainscan.0g.ai/tx/0x0b851c43676ff440c611ba7f8700e1f44bb0f059a06e28eeda32e20cd266c53f) |
 | forward epoch opened, schedule fixed | [`0x7fc60c5c…`](https://chainscan.0g.ai/tx/0x7fc60c5c6db8d82605f4168b4c14f412d416272dc2d6b14c681518d9291d0527) |
 | **commit** — sealed, direction private | [`0xb1cf572f…`](https://chainscan.0g.ai/tx/0xb1cf572f94cb2404a7781f207b21883a5a444b5387d563b2e34ca5ad83f20cdb) |
-| **reveal (green)** — verified byte-exact | [`0xdecf4eed…`](https://chainscan.0g.ai/tx/0xdecf4eed72087b518ae9212f0774a070a8776d303ff0f96e0e04aa96e3fffe98) |
-| **tampered reveal (red)** — rejected | [`0x3f12f574…`](https://chainscan.0g.ai/tx/0x3f12f57405b597001e18dc75d0f21d86c6d712bf9726db74d0b320046bf04f8c) |
+| **reveal (green)** — verified byte-exact | [`0xc8543dfc…`](https://chainscan.0g.ai/tx/0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19) |
+| **tampered reveal (red)** — rejected | [`0x6d68ade3…`](https://chainscan.0g.ai/tx/0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b) |
 | honest reveal of that same slot | [`0x210d4317…`](https://chainscan.0g.ai/tx/0x210d43176b9a950d21b16c778af1de419a62e4f4da1bc21239433b9f63a4e21c) |
 
 Two details worth clicking through to. The red transaction **succeeded**; it carries a
@@ -85,7 +85,7 @@ byte-exact receipt check, by decoding the reveal transaction's own calldata.
 ```bash
 cd packages/verify && pnpm install
 pnpm start -- --agent 5 --epoch 0      # schedule, deadlines, completeness recount
-pnpm start -- --tx 0xdecf4eed…         # one reveal, byte for byte
+pnpm start -- --tx 0xc8543dfc…         # one reveal, byte for byte
 ```
 
 It does not trust the stored `teeSigner`: it recovers the signer from the

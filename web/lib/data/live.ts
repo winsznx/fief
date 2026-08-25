@@ -17,7 +17,7 @@
  *    at this record size and would add a trust hop between the chain and the UI.
  */
 
-import { createPublicClient, defineChain, http, parseAbiItem } from 'viem';
+import { createPublicClient, decodeFunctionData, defineChain, http, parseAbiItem } from 'viem';
 import type { Address, PublicClient } from 'viem';
 
 import { CHAIN_SCAN_TX } from '@/lib/chain/zerog';
@@ -66,6 +66,9 @@ const ADDR = {
  */
 const DEPLOY_BLOCK = BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK ?? '42582000');
 
+/** How many revealed directions to decode per ledger load. */
+const DECODE_LIMIT = Number(process.env.NEXT_PUBLIC_DECODE_LIMIT ?? '40');
+
 /**
  * 0G mainnet, with the two things that make this viable inside a Worker.
  *
@@ -109,6 +112,41 @@ const EV = {
     'event DecisionRejected(uint256 indexed agentId, uint64 indexed epochId, uint32 indexed slot, string reason)',
   ),
 };
+
+const revealAbi = parseAbiItem(
+  'function revealDecision((uint256 agentId,uint64 epochId,uint32 slot,bytes respData,bytes signature,uint32 commitOffset,bytes32 inputHash,address renter,bytes32 salt))',
+);
+
+/**
+ * Recover the public decision from a reveal transaction.
+ *
+ * After a reveal the direction IS public — that is the entire point of the
+ * disclosure window — but it lives in the transaction's calldata rather than in
+ * contract storage, because storing it would have cost gas for data anyone can
+ * already read. Without this the UI showed "sealed until reveal" on slots that
+ * had been revealed hours earlier, which inverts the product's central claim.
+ */
+async function decodeDecision(
+  txHash: `0x${string}`,
+): Promise<{ decision?: Decision; respData?: string; commitOffset?: number }> {
+  try {
+    const tx = await client.getTransaction({ hash: txHash });
+    const { args } = decodeFunctionData({ abi: [revealAbi], data: tx.input });
+    const a = (args as readonly unknown[])[0] as { respData: `0x${string}`; commitOffset: number };
+    const respData = Buffer.from(a.respData.slice(2), 'hex').toString('utf8');
+
+    const content = (JSON.parse(respData) as { choices?: Array<{ message?: { content?: string } }> })
+      .choices?.[0]?.message?.content;
+    const line = content?.split('\n')[1]?.trim();
+    const parsed = line === undefined ? undefined : (JSON.parse(line) as Decision);
+
+    return { ...(parsed ? { decision: parsed } : {}), respData, commitOffset: a.commitOffset };
+  } catch {
+    // A reveal we cannot decode is reported as revealed without a direction,
+    // which is honest. Inventing one would not be.
+    return {};
+  }
+}
 
 const iso = (seconds: bigint | number) => new Date(Number(seconds) * 1000).toISOString();
 
@@ -309,10 +347,8 @@ async function loadEntries(agentId: bigint, epochId: bigint): Promise<DecisionEn
       epoch: Number(epochId),
       state: reveal ? 'revealed' : 'committed',
       status: 'accepted',
-      // The direction is only public after the reveal. Leaving it undefined is
-      // the honest representation of a sealed slot, and the UI renders
-      // "sealed until reveal" rather than a blank.
-      ...(entry === null ? {} : { decision: undefined as Decision | undefined }),
+      // Populated below for revealed slots. A slot still inside its disclosure
+      // window genuinely has no public direction, and the UI says so.
       committedAt: iso(commit.committedAt as bigint),
       commitDeadline: iso(times[0]),
       revealOpen: iso(times[1]),
@@ -330,7 +366,23 @@ async function loadEntries(agentId: bigint, epochId: bigint): Promise<DecisionEn
     });
   }
 
-  return out.sort((a, b) => a.slot - b.slot);
+  out.sort((a, b) => a.slot - b.slot);
+
+  // Decode the revealed directions. Capped because each one costs a
+  // transaction fetch, and a 288-slot campaign ledger would otherwise issue
+  // hundreds of requests to render one screen. The detail view decodes on
+  // demand for anything past the cap.
+  const revealedEntries = out.filter((e) => e.state === 'revealed').slice(0, DECODE_LIMIT);
+  await Promise.all(
+    revealedEntries.map(async (e) => {
+      const d = await decodeDecision(e.txHash);
+      if (d.decision !== undefined) e.decision = d.decision;
+      if (d.respData !== undefined) e.respData = d.respData;
+      if (d.commitOffset !== undefined) e.commitOffset = d.commitOffset;
+    }),
+  );
+
+  return out;
 }
 
 /* ------------------------------------------------------------------ source */
@@ -375,7 +427,14 @@ export const liveDataSource: DataSource = {
         const epochId = BigInt(log.topics[2] as string);
         const slot = Number(BigInt(log.topics[3] as string));
         const entries = await loadEntries(agentId, epochId);
-        return entries.find((e) => e.slot === slot) ?? null;
+        const found = entries.find((e) => e.slot === slot) ?? null;
+        if (found !== null && found.state === 'revealed' && found.decision === undefined) {
+          const d = await decodeDecision(found.txHash);
+          if (d.decision !== undefined) found.decision = d.decision;
+          if (d.respData !== undefined) found.respData = d.respData;
+          if (d.commitOffset !== undefined) found.commitOffset = d.commitOffset;
+        }
+        return found;
       }
       return null;
     } catch {
@@ -491,7 +550,20 @@ export const liveDataSource: DataSource = {
       green: g,
       // The red half is a deliberate tamper test that never became a stored
       // decision, so it is flagged rather than presented as part of a record.
-      red: { ...r, status: 'rejected', rejectReason: 'BadReveal', isTamperTest: true, state: 'invalid' },
+      //
+      // txHash is overridden back to the REJECTED transaction. getEntry resolves
+      // a hash through the slot's logs and returns the slot's entry, whose
+      // txHash is the successful reveal — so without this the page told a judge
+      // to verify the "rejected" transaction using the accepted one's hash.
+      red: {
+        ...r,
+        status: 'rejected',
+        rejectReason: 'BadReveal',
+        isTamperTest: true,
+        state: 'invalid',
+        txHash: red as `0x${string}`,
+        chainScanUrl: CHAIN_SCAN_TX(red),
+      },
     } as ShowcasePair;
   },
 

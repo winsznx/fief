@@ -46,9 +46,9 @@ chainId 16661)
 | agent registered (`H` + `storageRoot`) | `0x0b851c43676ff440c611ba7f8700e1f44bb0f059a06e28eeda32e20cd266c53f` |
 | forward epoch opened | `0x7fc60c5c6db8d82605f4168b4c14f412d416272dc2d6b14c681518d9291d0527` |
 | **sealed commit** | `0xb1cf572f94cb2404a7781f207b21883a5a444b5387d563b2e34ca5ad83f20cdb` |
-| **reveal, verified** | `0xdecf4eed72087b518ae9212f0774a070a8776d303ff0f96e0e04aa96e3fffe98` |
-| **tampered reveal, rejected** | `0x3f12f57405b597001e18dc75d0f21d86c6d712bf9726db74d0b320046bf04f8c` |
-| honest reveal of that same slot | `0x210d43176b9a950d21b16c778af1de419a62e4f4da1bc21239433b9f63a4e21c` |
+| **reveal, verified** | `0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19` |
+| **tampered reveal, rejected** | `0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b` |
+| **canonical pair, same slot one byte apart** | green `0xc8543dfc…` / red `0x6d68ade3…` (agent 8, slot 1) |
 | rental from a non-deployer wallet | `0x8ecc9978c206ce4072f4e744d70814fb568988ab31b0138ec615966e60d06ee1` |
 | settlement | `0x5c7dcb515890142acbebf850956f014202f3e46c70833d0a56bb5902eab464ec` |
 
@@ -77,13 +77,26 @@ original screenplay showed a rental before the rental existed.
 | 1:20 | `pnpm adversarial`, two rejections | "Commit after the deadline: rejected. That's the attack that makes fake records possible, closed on-chain." |
 | 1:35 | the red tx on ChainScan, status success | "Flip one byte and reveal: rejected. Note the transaction succeeded, carrying the rejection as an event." |
 | 1:50 | honest reveal lands, completeness ticks to 100% | "Reveal it honestly and it still works. A bad reveal can't be used to damage someone's record." |
-| 2:05 | `/agents/5`, completeness bar | "Here's the whole epoch. 2,400 of 2,402 slots proven. Two missed, and they stay missed." |
-| 2:25 | the slot timeline | "Sealed 18 seconds inside its deadline, private for 348 seconds after that." |
+| 2:05 | the live app, marketplace | "Every agent, read straight off mainnet. No indexer, no database." |
+| 2:15 | an agent's completeness bar | "The denominator is the schedule, fixed before any of this happened. A slot the agent missed stays missed." |
+| 2:25 | the slot timeline on /proof | "Sealed 98 seconds inside its deadline, and private for 338 seconds after that. That window is what a renter buys." |
 | 2:40 | `cast call expectedTeeSigner`, clean terminal | "No frontend needed. The enclave key comes straight from 0G's own serving contract." |
 | 2:55 | title card | "Fief. The same sealed strategy said this, at this time, before the answer was known." |
 
 Record at 1080p minimum, terminal at 16px+, ChainScan zoomed so hashes are
 legible on a projector.
+
+**Live app:** https://fief.timjosh507.workers.dev — Cloudflare Workers, reading
+contracts and logs directly. No indexer sits between the chain and the screen.
+
+**Independent verifier:** `packages/verify` recomputes the schedule, recounts
+completeness and re-verifies a reveal byte for byte from its own calldata,
+recovering the signer rather than reading the stored one back.
+
+```bash
+cd packages/verify && pnpm start -- --agent 8 --epoch 0   # 7/7
+cd packages/verify && pnpm start -- --tx 0xc8543dfc…      # 6/6
+```
 
 ## 5. Documentation
 
@@ -91,6 +104,8 @@ legible on a projector.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — mermaid sequence, contracts, 0G component table, honest limits
 - [SETUP.md](../SETUP.md) — clean-clone reproduction, wallet-free verification
 - [contracts/SLITHER.md](../contracts/SLITHER.md) — audit triage
+- [SECURITY.md](../SECURITY.md) — what is proven, what is not, the sharp edges
+- [claims.yaml](../claims.yaml) — every claim with its rung and evidence; CI fails on README drift
 - [DECISIONS.md](../DECISIONS.md) — every load-bearing decision with its reason
 
 ## 6. Public X post
@@ -104,14 +119,15 @@ legible on a projector.
 > once it isn't.
 >
 > Live on @0G_labs mainnet:
-> • schedule fixed before any outcome existed
-> • every slot committed inside its deadline from a TEE-signed 0G Compute receipt
-> • revealed after the horizon, verified byte-exact on-chain
-> • 2,400 of 2,402 slots proven — the two misses stay visible
+> • schedule fixed on-chain before any outcome existed
+> • every call committed inside its deadline from a TEE-signed 0G Compute receipt
+> • sealed for 338s while the renter holds it, then revealed and verified byte-exact
+> • every scheduled slot resolves publicly — a missed call stays missed
 >
 > Tamper one byte and the chain rejects it. Reveal honestly and the record is
 > undamaged, so nobody can grief an agent's score.
 >
+> Live: fief.timjosh507.workers.dev
 > RecordBook 0x40eB003340f467e096F8Ae30f8696bE40Eba922c
 > github.com/winsznx/fief
 >
@@ -140,11 +156,12 @@ invariants. A differential fuzz on the hand-written assembly. Slither before
 deployment, with the one real finding fixed and the false positives argued
 rather than dismissed.
 
-**Traction and communication (10%).** Honest by construction: the completeness
-bar shows 99.92%, not 100%, because two slots were genuinely missed. Weakest
-axis, and the honest gap is external users. One independent strategy author and
-one independent renter would be worth more here than any amount of further
-engineering.
+**Traction and communication (10%).** Honest by construction: the marketplace
+shows agents at 0% and 50% alongside the ones at 100%, because those runs really
+did miss slots. A forward campaign is accruing a 288-slot record at a five-minute
+cadence. Still the weakest axis, and the honest gap is external users: one
+independent strategy author and one independent renter would be worth more here
+than any further engineering.
 
 ## 8. Known gaps, stated rather than hidden
 

@@ -81,3 +81,44 @@ Single file upload completed - returning single result
 
 [4] slot 0 — the GREEN pair
    waiting 18s for slot 0's snapshot time
+   COMMIT  sealed, direction private   https://chainscan.0g.ai/tx/0x16b4492ecfc41ae559a16fc109312bd3073f6666a8edda362b7d6ab22a0287c5
+           renter sees: {"dir":"FLAT","conf":0.55,"size":0.2}
+   waiting 327s for slot 0's disclosure window
+   REVEAL  verified byte-exact on-chain https://chainscan.0g.ai/tx/0x9875b340999e3216a1c9a3e8cb14e6114b7521ac7fe7a8ad05bfd26535f81aad
+
+[5] slot 1 — the RED transaction
+   waiting 30s for slot 1's snapshot time
+   COMMIT  https://chainscan.0g.ai/tx/0x2b50a6891e59ed338500fd1c99acd83cde79432127c417db29a0169f0070a303
+   waiting 326s for slot 1's disclosure window
+   REVEAL  one byte flipped at offset 2182 of 2185
+           REJECTED on-chain, as a successful tx carrying DecisionRejected
+           https://chainscan.0g.ai/tx/0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b
+   slot 1 still unrevealed (not griefable): true
+   honest reveal of the same slot still accepted
+           https://chainscan.0g.ai/tx/0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19
+
+[6] epoch state
+   committed 2 / 2   revealed 2
+   completeness 100%
+
+--- frontend env ---
+NEXT_PUBLIC_NETWORK=mainnet
+NEXT_PUBLIC_RECORD_BOOK=0x40eB003340f467e096F8Ae30f8696bE40Eba922c
+NEXT_PUBLIC_EPOCH_BOOK=0x9f02bfBbc52fD91d1899C298B71AF1871CA45DF8
+NEXT_PUBLIC_AGENT_ID=8
+NEXT_PUBLIC_EPOCH_ID=0
+NEXT_PUBLIC_GREEN_TX=0x9875b340999e3216a1c9a3e8cb14e6114b7521ac7fe7a8ad05bfd26535f81aad
+NEXT_PUBLIC_RED_TX=0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b
+
+--- all artifacts ---
+strategyHash     0xf1b0fa278fd7f88d3dd985bdd7555eb722a1c3c6dd31a3106b3a9247b2714a4d
+storageRoot      0x735f6362ecff622c87c40ea1281d625568c8c9f3f5f168ccfb4948231f53daca
+storageTx        0x3145495ab3f9158913b46c06b2577d7794d0aeb24ec437266c91e99e3f09d16e
+agentId          8
+registerTx       0x8b4775328c24f4b89a4afaaa39b440392b02399834eb71f8a631760bfea70bc0
+epochId          0
+openEpochTx      0x64debb3d29793601b515baea9dab5e04a461dff8e019b0783e6894f3ca7d1555
+greenCommitTx    0x16b4492ecfc41ae559a16fc109312bd3073f6666a8edda362b7d6ab22a0287c5
+greenRevealTx    0x9875b340999e3216a1c9a3e8cb14e6114b7521ac7fe7a8ad05bfd26535f81aad
+redTx            0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b
+repairRevealTx   0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19

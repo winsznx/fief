@@ -102,6 +102,30 @@ claims:
       - "completenessBps(5,0) -> 10000"
       - "fief-verify --agent 5 --epoch 0 (7/7)"
 
+  - id: canonical-pair
+    claim: >
+      The canonical showcase pair is agent 8 slot 1: a rejected reveal and the
+      honest reveal of the SAME slot, one byte apart, with a real 338-second
+      private window.
+    rung: 9
+    status: verified
+    agent: 8
+    evidence:
+      - "green (repair) 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19"
+      - "red (tampered) 0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b"
+      - "commit        0x16b4492ecfc41ae559a16fc109312bd3073f6666a8edda362b7d6ab22a0287c5"
+      - "fief-verify --agent 8 --epoch 0 (7/7)"
+      - "private window 338s; agent 5's was -1s, which is why the pair moved"
+
+  - id: live-app
+    claim: "A public app reads the record straight off mainnet with no indexer."
+    rung: 8
+    status: verified
+    evidence:
+      - "https://fief.timjosh507.workers.dev"
+      - "Cloudflare Workers via OpenNext; LiveDataSource reads contracts and logs"
+      - "marketplace lists 8 live agents with their real completeness"
+
   - id: tamper-rejected
     claim: >
       A reveal with one tampered byte is rejected on-chain, and the honest
