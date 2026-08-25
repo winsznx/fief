@@ -574,7 +574,19 @@ Reordered per patch.md: the commercial loop moves into Wave 3, because the pre-c
 
   *Gate: a rental settled from a wallet that is not the deployer. Passed.*
 
-  Not yet done in this phase: the ERC-8004 feedback leg, which needs the testnet Agentic ID registries and a real `ServeProof`.
+### 16.2 ERC-8004 reputation - serve proofs proven, redemption scoped
+
+Fief can issue valid ERC-8004 serve proofs, and that is checked by 0G's code rather than ours: every assertion routes through the Agentic ID SDK's own `verifyServeProofSignature`. 7 unit tests in CI plus a live check (`pnpm reputation`, 6/6) against the production attestor.
+
+What is proven:
+
+- The pinned registry addresses match the production attestor's live `GET /config` (`agenticid.0g.ai`), so an upstream proxy redeploy fails loudly instead of writing feedback to a dead contract. Addresses were read from the attestor, not copied from a doc.
+- A proof binds to exactly one redeemer. `submitter` is inside the signed digest, so a proof handed to the wrong party is worthless.
+- A proof binds to exactly one slot. `taskHash` commits to `(fiefAgentId, epochId, slot, renter)`.
+- `dataHashes` carries the strategy commitment and the input, so reputation is tied to the strategy version that earned it. The SDK's own guide flags data-bound reputation as designed but not yet in the SDK; this is the upstream contribution target in §15.
+- The `AgenticIDReputationRegistry` proxy is deployed and reachable at `0xede70197313d0b603612dfc9801162d1ada3d196` on 16602.
+
+**What is not done, and why.** `giveFeedback` requires an agent minted in the AgenticID registry with a registered `agentSeal`, and minting reverts `AgenticIDNotTrustedAttestor` unless a trusted attestor deploys the agent into 0G's TEE sandbox. That is a sandbox-runtime integration, not a signature problem: it means running the Fief agent as a sandboxed Agentic ID agent under one of the attestor's frameworks (`openclaw`, `hermes`, `prime-agent`). Scoped as the remaining leg rather than stubbed, and it also needs testnet OG, which is at 0.0039.
 - **P5 - submission.** README first screen, video to the §17 screenplay, X post, AKINDO fields, cold adversarial audit, clean-clone reproduction. *Gate: filed before the deadline. Stop: nothing new after code freeze.*
 
 **Wave 4 (deadline 2026-09-20).** The 100-plus-slot forward campaign with published completeness (rung 10); Agentic ID migration to mainnet if upstream ships; third-party strategy author onboarding, which is worth more than ten self-owned agents against the 10% traction axis; `fief verify` hardened as a first-class public product; second and third agents.

@@ -11,19 +11,24 @@
     "adversarial": "tsx src/cli/adversarial.ts",
     "showcase": "tsx src/cli/showcase.ts",
     "rental": "tsx src/cli/rental.ts",
-    "settle": "tsx src/cli/settle.ts"
+    "settle": "tsx src/cli/settle.ts",
+    "reputation": "tsx src/cli/reputation.ts",
+    "test": "vitest run",
+    "verify": "pnpm typecheck && pnpm test"
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
     "@fief/reference": "file:../packages/reference",
     "ethers": "^6.13.4",
     "viem": "^2.55.18",
-    "@0gfoundation/0g-storage-ts-sdk": "1.2.11"
+    "@0gfoundation/0g-storage-ts-sdk": "1.2.11",
+    "@0gfoundation/0g-agenticid-sdk": "0.1.2"
   },
   "devDependencies": {
     "@types/node": "^20",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   },
   "packageManager": "pnpm@11.21.0"
 }
