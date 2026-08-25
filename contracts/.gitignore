@@ -1,4 +1,9 @@
+# Foundry build output and installed dependencies.
+#
+# `/lib/` is anchored deliberately. An unanchored `lib/` matches at ANY depth,
+# which silently excluded src/lib/Bytes.sol and pushed a repo that did not
+# compile from a clean clone.
 out/
 cache/
-lib/
+/lib/
 broadcast/
