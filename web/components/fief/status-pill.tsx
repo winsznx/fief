@@ -17,13 +17,11 @@ import { cn } from '@/lib/utils';
  */
 
 export const REJECT_REASON_COPY: Record<RejectReason, string> = {
+  BadReveal: 'the reveal did not open the commitment published at commit time',
+  BadHash: 'response bytes do not hash to what was committed',
   BadSigner: 'signature did not recover to the registered TEE signer',
-  BadNonce: 'nonce was already consumed for this token and epoch',
-  BadEpoch: 'entry names an epoch the token has moved past',
   BadCommit: 'commit line does not match the sealed strategy commitment',
-  BadHash: 'response bytes do not hash to the signed text',
-  NotOperator: 'submitter is not the token’s registered operator',
-  BadAnchor: 'commit line is not at the head of the message content',
+  RevealTooEarly: 'opened before the disclosure window — the signal still had value',
 };
 
 const SIZES = {

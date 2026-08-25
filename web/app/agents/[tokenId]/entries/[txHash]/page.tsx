@@ -26,13 +26,15 @@ export async function generateMetadata({
   const { agent, entry } = found;
   return {
     title:
-      entry.entryIndex === null
+      entry.state === 'invalid'
         ? `${agent.name} · tamper test`
-        : `${agent.name} · entry #${entry.entryIndex}`,
+        : `${agent.name} · slot ${entry.slot}`,
     description:
-      entry.status === 'accepted'
-        ? `Accepted decision ${entry.decision.dir} recorded on 0G, verified against the agent's sealed strategy commitment.`
-        : `Rejected submission (${entry.rejectReason}) on 0G — a deliberate tamper test, not part of any record.`,
+      entry.status === 'accepted' && entry.decision !== undefined
+        ? `Revealed decision ${entry.decision.dir} on 0G, verified byte-exact against the agent's sealed strategy commitment.`
+        : entry.status === 'accepted'
+          ? `Slot ${entry.slot} committed on 0G — sealed until its disclosure window opens.`
+          : `Rejected reveal (${entry.rejectReason}) on 0G — a deliberate tamper test, not part of any record.`,
   };
 }
 

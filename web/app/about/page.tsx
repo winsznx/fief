@@ -95,7 +95,7 @@ export default function AboutPage() {
           <Item>
             The ERC-7857 reference verifier this build forks is permissive: mint and update accept
             any 32-byte hash, and transfer validity checks only a receiver signature plus a replay
-            nonce. Fief claims no cryptographic mint or transfer security from it. Record integrity
+            replay nonce. Fief claims no cryptographic mint or transfer security from it. Record integrity
             is independent — the ledger is keyed by token and is untouched by transfer.
           </Item>
           <Item>

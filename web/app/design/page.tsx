@@ -29,11 +29,9 @@ export const metadata = { title: 'Design system' };
 const REASONS: RejectReason[] = [
   'BadCommit',
   'BadSigner',
-  'BadNonce',
-  'BadEpoch',
+  'BadReveal',
   'BadHash',
-  'NotOperator',
-  'BadAnchor',
+  'RevealTooEarly',
 ];
 
 function Section({

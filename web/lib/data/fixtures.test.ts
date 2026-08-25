@@ -17,11 +17,9 @@ const HEX20 = /^0x[0-9a-f]{40}$/;
 const ALL_REASONS: RejectReason[] = [
   'BadCommit',
   'BadSigner',
-  'BadNonce',
-  'BadEpoch',
+  'BadReveal',
+  'RevealTooEarly',
   'BadHash',
-  'NotOperator',
-  'BadAnchor',
 ];
 
 describe('fixture hex widths', () => {
@@ -91,27 +89,27 @@ describe('ledgers are accepted-only (v1.1 Q1)', () => {
   it('contains no rejected entry in any agent ledger', () => {
     for (const a of getAgents()) {
       for (const e of getEntriesFor(a.tokenId)) {
-        expect(e.status, `agent ${a.tokenId} entry ${e.entryIndex}`).toBe('accepted');
+        expect(e.status, `agent ${a.tokenId} entry ${e.slot}`).toBe('accepted');
         expect(e.rejectReason).toBeUndefined();
         expect(e.isTamperTest).toBeUndefined();
       }
     }
   });
 
-  it('keeps entryIndex contiguous from 0 within each ledger', () => {
+  it('keeps slot contiguous from 0 within each ledger', () => {
     // The on-chain array cannot have gaps: a rejected submission never occupies
     // a slot, so the index IS the position.
     for (const a of getAgents()) {
       getEntriesFor(a.tokenId).forEach((e, i) => {
-        expect(e.entryIndex, `agent ${a.tokenId} position ${i}`).toBe(i);
+        expect(e.slot, `agent ${a.tokenId} position ${i}`).toBe(i);
       });
     }
   });
 
-  it('keeps nonces strictly increasing across each ledger (PRD I2)', () => {
+  it('keeps slots contiguous across each ledger (PRD v2 I13)', () => {
     for (const a of getAgents()) {
       getEntriesFor(a.tokenId).forEach((e, i) => {
-        expect(e.nonce).toBe(i + 1);
+        expect(e.slot).toBe(i);
       });
     }
   });
@@ -134,10 +132,12 @@ describe('ledgers are accepted-only (v1.1 Q1)', () => {
 describe('tamper tests (v1.1 Q1)', () => {
   const tests = getTamperTests();
 
-  it('are all rejected, flagged, and have no entry index', () => {
+  it('are all rejected, flagged, and never reach the revealed state', () => {
     expect(tests.length).toBeGreaterThan(0);
     for (const e of tests) {
-      expect(e.entryIndex, `${e.rejectReason} entryIndex`).toBeNull();
+      // The slot is real — it was scheduled and committed. The reveal is what
+      // failed, so the state is `invalid` rather than the slot being absent.
+      expect(e.state, `${e.rejectReason} state`).toBe('invalid');
       expect(e.isTamperTest, `${e.rejectReason} isTamperTest`).toBe(true);
       expect(e.status).toBe('rejected');
       expect(e.rejectReason).toBeDefined();
@@ -172,8 +172,10 @@ describe('canonical showcase pair', () => {
   });
 
   it('pairs a real stored entry with a tamper test (D14)', () => {
-    expect(green.entryIndex).not.toBeNull();
-    expect(red.entryIndex).toBeNull();
+    // Both halves have a slot: the schedule created it before either existed.
+    // What separates them is that the red one never reached `revealed`.
+    expect(green.state).toBe('revealed');
+    expect(red.state).toBe('invalid');
     expect(red.isTamperTest).toBe(true);
   });
 
@@ -184,9 +186,9 @@ describe('canonical showcase pair', () => {
     expect(red.commitOffset).toBeGreaterThan(0);
   });
 
-  it('is the SAME submission — same nonce, input and request hash', () => {
+  it('is the SAME submission — same slot, input and request hash', () => {
     // PRD §2: "the same submission with one tampered byte".
-    expect(red.nonce).toBe(green.nonce);
+    expect(red.slot).toBe(green.slot);
     expect(red.inputHash).toBe(green.inputHash);
     expect(red.reqSha).toBe(green.reqSha);
     expect(red.decision).toEqual(green.decision);
@@ -221,7 +223,7 @@ describe('stress fixture', () => {
   it('generates 10k accepted entries for the §5.4 virtualization requirement', () => {
     const list = getStressEntries();
     expect(list).toHaveLength(10_000);
-    expect(list[9_999].entryIndex).toBe(9_999);
+    expect(list[9_999].slot).toBe(9_999);
     expect(list.every((e) => e.status === 'accepted')).toBe(true);
   });
 });

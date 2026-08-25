@@ -679,17 +679,17 @@ function SettlementPanel({ agent }: { agent: Agent }) {
 
   const [picked, setPicked] = useState<ReadonlySet<number>>(new Set());
   const selected = useMemo(
-    () => unsettled.filter((r) => picked.has(r.entryIndex)),
+    () => unsettled.filter((r) => picked.has(r.slot)),
     [unsettled, picked],
   );
 
   const totals = useMemo(() => sumSettlements(selected), [selected]);
 
-  const toggle = (entryIndex: number) => {
+  const toggle = (slot: number) => {
     setPicked((prev) => {
       const next = new Set(prev);
-      if (next.has(entryIndex)) next.delete(entryIndex);
-      else next.add(entryIndex);
+      if (next.has(slot)) next.delete(slot);
+      else next.add(slot);
       return next;
     });
   };
@@ -731,7 +731,7 @@ function SettlementPanel({ agent }: { agent: Agent }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setPicked(new Set(unsettled.map((r) => r.entryIndex)))}
+              onClick={() => setPicked(new Set(unsettled.map((r) => r.slot)))}
               disabled={unsettled.length === 0}
             >
               Select all unsettled ({formatCount(unsettled.length)})
@@ -771,11 +771,11 @@ function SettlementPanel({ agent }: { agent: Agent }) {
               <tbody>
                 {rows.map((row) => (
                   <SettlementRow
-                    key={row.entryIndex}
+                    key={row.slot}
                     row={row}
                     tokenId={agent.tokenId}
-                    checked={picked.has(row.entryIndex)}
-                    onToggle={() => toggle(row.entryIndex)}
+                    checked={picked.has(row.slot)}
+                    onToggle={() => toggle(row.slot)}
                   />
                 ))}
               </tbody>
@@ -795,7 +795,7 @@ function SettlementPanel({ agent }: { agent: Agent }) {
             disabled={selected.length === 0 || settle.isPending}
             onClick={() =>
               settle.mutate(
-                selected.map((r) => r.entryIndex),
+                selected.map((r) => r.slot),
                 {
                   onSuccess: (r) => {
                     if (r.ok) {
@@ -845,7 +845,7 @@ function SettlementRow({
             type="checkbox"
             checked={checked}
             onChange={onToggle}
-            aria-label={`Select entry ${row.entryIndex} for settlement`}
+            aria-label={`Select entry ${row.slot} for settlement`}
             className="accent-foreground size-3.5 align-middle"
           />
         )}
@@ -859,10 +859,10 @@ function SettlementRow({
             href={`/agents/${tokenId}/entries/${row.txHash}`}
             className="hover:text-foreground underline-offset-4 hover:underline"
           >
-            #{row.entryIndex}
+            #{row.slot}
           </Link>
         ) : (
-          <span>#{row.entryIndex}</span>
+          <span>#{row.slot}</span>
         )}
       </td>
       <td className="px-2 py-1.5">

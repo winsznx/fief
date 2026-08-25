@@ -20,8 +20,8 @@ export const metadata: Metadata = {
 const PROVEN = [
   'The response was produced by the TEE signer registered in 0G’s inference serving contract.',
   'The response bytes submitted on-chain hash to the text that signer signed.',
-  'The run declared this agent, this sealed strategy commitment, this epoch, this nonce and this input.',
-  'The nonce had not been used before, so the entry cannot be a replay.',
+  'The run declared this agent, this sealed strategy commitment, this epoch, this slot and this input.',
+  'The slot was scheduled before the outcome was knowable, and it accepts exactly one commit, so the entry cannot be a replay or a late addition.',
   'The entry is append-only and survives rental, transfer and reseal.',
 ];
 

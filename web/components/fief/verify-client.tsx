@@ -82,7 +82,7 @@ export function VerifyClient({ initialTxHash = '' }: { initialTxHash?: string })
         <EmptyState
           icon={Search}
           title="Paste a transaction hash to check it"
-          description="The result shows each on-chain check individually: whether the signature recovered to the registered TEE signer, whether the commitment matched the sealed strategy, and whether the nonce was fresh."
+          description="The result shows each on-chain check individually: whether the signature recovered to the registered TEE signer, whether the reveal opened the commitment published at commit time, and whether the commit line matched the sealed strategy for that slot."
         />
       ) : null}
 

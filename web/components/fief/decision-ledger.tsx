@@ -25,7 +25,7 @@ import { StatusPill } from './status-pill';
  * carry no reject-reason column and no left-rule branch.
  *
  * Columns are the §5.4 set: entryIndex, time, decision, Accepted pill, TEE
- * signer (short), nonce/epoch, ChainScan link.
+ * signer (short), slot/epoch, ChainScan link.
  *
  * Keyboard: ArrowUp/ArrowDown move the active row, Home/End jump, Enter opens.
  * The active row is scrolled into view through the virtualizer so keyboard
@@ -36,7 +36,7 @@ const ROW_PX = 36; // must match --spacing-row (2.25rem)
 
 /**
  * One grid template for the header and every row, so they cannot drift apart.
- * The signer and nonce/epoch columns are hidden below `lg` rather than allowed
+ * The signer and slot/epoch columns are hidden below `lg` rather than allowed
  * to wrap: a fixed row height is a hard constraint of virtualization.
  */
 const COLS =
@@ -211,10 +211,9 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
                 <div
                   key={v.key}
                   role="row"
-                  // entryIndex is the on-chain array position; aria-rowindex is
-                  // 1-based. Ledger entries always carry one (v1.1 Q1), so the
-                  // fallback is only for type-narrowing.
-                  aria-rowindex={(entry.entryIndex ?? v.index) + 1}
+                  // The slot is the on-chain identity of the decision, fixed by
+                  // the epoch schedule; aria-rowindex is 1-based.
+                  aria-rowindex={entry.slot + 1}
                   aria-selected={active === v.index}
                   onClick={() => {
                     setActive(v.index);
@@ -229,17 +228,25 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
                   style={{ height: v.size, transform: `translateY(${v.start}px)` }}
                 >
                   <span className="tnum text-muted-foreground font-mono text-xs">
-                    {entry.entryIndex}
+                    s{entry.slot}
                   </span>
                   <span className="tnum text-muted-foreground font-mono text-xs">
                     {formatTimeShort(entry.blockTime)}
                   </span>
                   <span className="tnum flex min-w-0 items-baseline gap-2 font-mono text-[0.8125rem]">
-                    <span className="font-medium">{entry.decision.dir}</span>
-                    <span className="text-muted-foreground truncate text-xs">
-                      conf {formatUnit(entry.decision.conf)} · size{' '}
-                      {formatUnit(entry.decision.size)}
-                    </span>
+                    {entry.decision === undefined ? (
+                      // Committed but not yet revealed: the direction is
+                      // genuinely not public yet (PRD v2 §4.2).
+                      <span className="text-muted-foreground text-xs">sealed until reveal</span>
+                    ) : (
+                      <>
+                        <span className="font-medium">{entry.decision.dir}</span>
+                        <span className="text-muted-foreground truncate text-xs">
+                          conf {formatUnit(entry.decision.conf)} · size{' '}
+                          {formatUnit(entry.decision.size)}
+                        </span>
+                      </>
+                    )}
                   </span>
                   <span
                     className="tnum text-muted-foreground hidden truncate font-mono text-xs lg:block"
@@ -248,7 +255,7 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
                     {truncateHex(entry.teeSigner, 4)}
                   </span>
                   <span className="tnum text-muted-foreground hidden font-mono text-xs lg:block">
-                    {entry.nonce} / {entry.epoch}
+                    {entry.slot} / {entry.epoch}
                   </span>
                   <span className="flex justify-end">
                     <StatusPill status={entry.status} size="sm" />
@@ -264,7 +271,7 @@ export function DecisionLedger({ tokenId }: { tokenId: string }) {
                   >
                     <ExternalLink className="size-3.5" aria-hidden />
                     <span className="sr-only">
-                      View entry {entry.entryIndex} on ChainScan (opens in a new tab)
+                      View slot {entry.slot} on ChainScan (opens in a new tab)
                     </span>
                   </a>
                 </div>

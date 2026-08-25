@@ -36,6 +36,7 @@ import type {
   AuditGrant,
   Decision,
   DecisionEntry,
+  EpochSummary,
   Direction,
   Grant,
   Listing,
@@ -108,16 +109,57 @@ interface GenSpec {
   startedAt: string;
   /** Indices that carry the renter address rather than the zero address. */
   renterFrom?: number;
+  /**
+   * Scheduled slots in the epoch. Defaults to `count`, i.e. a perfect run.
+   * Set it higher than `count` to model genuine misses, so the completeness
+   * bar shows something other than 100% and stays a real metric.
+   */
+  slotCount?: number;
 }
 
 /**
- * Generates an ACCEPTED-ONLY ledger (v1.1 Q1).
+ * Generates a REVEALED ledger for an epoch (PRD v2 §6).
  *
- * `entryIndex` is the position in the on-chain `entries[]` array, so it is
- * contiguous from 0 by construction — there are no gaps, because a rejected
- * submission never occupies a slot. `nonce` advances with it (PRD I2: the nonce
- * is assigned in order of successful verification).
+ * Slots come from the schedule, so they are contiguous from 0 by construction:
+ * the epoch fixed them before any decision existed. A slot the operator never
+ * committed is absent here and shows up as `missed` in the epoch summary, which
+ * is what makes the record complete rather than merely authentic.
  */
+/**
+ * Derive the epoch summary from the generated ledger (PRD v2 §5 EpochBook).
+ *
+ * Every number here is computed from the slots, never hardcoded, so the
+ * completeness bar and the ledger can never disagree — which is the whole point
+ * of publishing completeness in the first place.
+ *
+ * `slotCount` is deliberately larger than the number of revealed slots for the
+ * agents that have gaps: those are genuine misses, and a fixture that always
+ * showed 100% would make the metric decorative.
+ */
+function summarizeEpoch(spec: GenSpec, list: DecisionEntry[]): EpochSummary {
+  const slotCount = spec.slotCount ?? list.length;
+  const revealed = list.filter((e) => e.state === 'revealed').length;
+  const committed = list.length;
+  const missed = Math.max(0, slotCount - committed);
+
+  return {
+    epochId: spec.epoch,
+    market: 'BTC-USDT',
+    cadenceSeconds: 300,
+    horizonSeconds: 300,
+    maxCommitDelay: 30,
+    disclosureDelay: 60,
+    startTime: spec.startedAt,
+    slotCount,
+    committed,
+    revealed,
+    missed,
+    invalid: committed - revealed,
+    completenessBps: slotCount === 0 ? 0 : Math.round((revealed / slotCount) * 10_000),
+    finalized: false,
+  };
+}
+
 function generateEntries(spec: GenSpec): DecisionEntry[] {
   const rand = mulberry32(spec.seed);
   const start = Date.parse(spec.startedAt);
@@ -137,12 +179,19 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
     const blockTime = new Date(start + i * 300_000 + jitter).toISOString();
 
     const tx = txHash(rand);
+    const commitTx = txHash(rand);
+    const snapAt = start + i * 300_000;
     entries.push({
-      entryIndex: i,
+      slot: i,
+      epoch: spec.epoch,
+      state: 'revealed',
       status: 'accepted',
       decision,
-      nonce: i + 1,
-      epoch: spec.epoch,
+      committedAt: new Date(snapAt + 12_000).toISOString(),
+      commitDeadline: new Date(snapAt + 30_000).toISOString(),
+      revealOpen: new Date(snapAt + 300_000 + 60_000).toISOString(),
+      commitTxHash: commitTx,
+      receiptCommit: hash32(rand),
       reqSha: hash32(rand),
       respSha: hash32(rand),
       teeSigner: MOCK_TEE_SIGNER,
@@ -163,9 +212,8 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
  * Stable numeric seed from a string, so respData synthesis does not depend on
  * an entry's position in a ledger.
  *
- * It must not depend on `entryIndex`: tamper tests have `entryIndex === null`
- * (v1.1 Q1), and the canonical red is seeded from the green precisely so the
- * two envelopes are identical apart from the tampered byte.
+ * It must not depend on the slot: the canonical red is seeded from the green
+ * precisely so the two envelopes are identical apart from the tampered byte.
  */
 function seedFromString(value: string): number {
   let h = 0x811c9dc5;
@@ -202,7 +250,7 @@ function synthesizeRespData(
     chainId: MOCK_CHAIN_ID,
     tokenId: agent.tokenId,
     epoch: entry.epoch,
-    nonce: entry.nonce,
+    slot: entry.slot,
     strategyHash: agent.strategyHash,
     inputHash: entry.inputHash,
     renter: entry.renter,
@@ -218,7 +266,9 @@ function synthesizeRespData(
     created: Math.floor(Date.parse(seedEntry.blockTime) / 1000),
     model: MOCK_MODEL,
     commitLine: line,
-    decision: seedEntry.decision,
+    // A slot with no revealed decision has no envelope to synthesise; callers
+    // only reach this for revealed or rejected entries, both of which carry one.
+    decision: seedEntry.decision ?? {dir: 'FLAT', conf: 0, size: 0},
     promptTokens: 820 + Math.floor(rand() * 220),
     completionTokens: 96 + Math.floor(rand() * 40),
   });
@@ -262,7 +312,9 @@ const STRATEGY_4 = '0x91e3c7a5f2d08b46e1c3a5f7d9b1e3c5a7f9d1b3e5c7a9f1d3b5e7c9a1
 const STRATEGY_5 = '0x5f0d2b4e6c8a0f2d4b6e8c0a2f4d6b8e0c2a4f6d8b0e2c4a6f8d0b2e4c6a8f0d' as const;
 
 interface AgentSpec extends GenSpec {
-  agent: Omit<Agent, 'decisionCount' | 'verified' | 'strategyHash' | 'epoch'>;
+  // `currentEpoch` is derived from the generated ledger, never authored, so it
+  // is omitted here alongside the other derived fields.
+  agent: Omit<Agent, 'decisionCount' | 'verified' | 'strategyHash' | 'epoch' | 'currentEpoch'>;
 }
 
 const AGENT_SPECS: AgentSpec[] = [
@@ -270,6 +322,9 @@ const AGENT_SPECS: AgentSpec[] = [
     tokenId: '1',
     seed: 0x5eed01,
     count: 2400,
+    // Two scheduled slots were never committed: a provider outage during the
+    // run. v2 reports that honestly instead of hiding it, which is the point.
+    slotCount: 2402,
     epoch: 1,
     strategyHash: STRATEGY_1,
     startedAt: '2026-08-12T14:00:00.000Z',
@@ -401,13 +456,13 @@ const TAMPER_SPECS: Record<RejectReason, { tokenId: string; at: number }> = {
   // tampered byte. This pair is the product's headline claim (PRD §2).
   BadCommit: { tokenId: '1', at: 0 },
   BadSigner: { tokenId: '2', at: 12 },
-  BadNonce: { tokenId: '2', at: 40 },
-  // Agent 5 is on epoch 2, so a submission naming epoch 1 is genuinely an epoch
-  // the token has moved past rather than an invented value.
-  BadEpoch: { tokenId: '5', at: 10 },
+  // The reveal does not open the published commitment: the salt, offset or
+  // bytes differ from what was committed.
+  BadReveal: { tokenId: '2', at: 40 },
   BadHash: { tokenId: '2', at: 77 },
-  NotOperator: { tokenId: '3', at: 0 },
-  BadAnchor: { tokenId: '2', at: 120 },
+  // Opened before the disclosure window, which would have handed the signal
+  // away while it still had value.
+  RevealTooEarly: { tokenId: '5', at: 10 },
 };
 
 function buildTamperTests(ledgers: Map<string, DecisionEntry[]>): {
@@ -432,8 +487,9 @@ function buildTamperTests(ledgers: Map<string, DecisionEntry[]>): {
 
     const test: DecisionEntry = {
       ...source,
-      // v1.1 Q1: never stored on-chain, so there is no array slot to occupy.
-      entryIndex: null,
+      // The slot exists (it was scheduled and committed) but the reveal failed,
+      // so it never became a proven decision.
+      state: 'invalid',
       status: 'rejected',
       rejectReason: reason,
       isTamperTest: true,
@@ -444,16 +500,14 @@ function buildTamperTests(ledgers: Map<string, DecisionEntry[]>): {
       // Per-reason mutation, so each red entry is internally consistent with
       // the reason it carries rather than merely labelled with it.
       //
-      // BadCommit tampers the respData bytes, not a field — see
-      // synthesizeRespData. NotOperator and BadAnchor are properties of the
-      // SUBMISSION rather than the entry: who sent the transaction, and where
-      // the commit line sits inside the envelope. Neither has a DecisionEntry
-      // field to mutate, so those two stay faithful copies and the failing
-      // check is what distinguishes them.
+      // BadCommit tampers the respData bytes rather than a field — see
+      // synthesizeRespData.
       ...(reason === 'BadSigner' ? { teeSigner: `0x${hex(rand, 40)}` as const } : {}),
-      ...(reason === 'BadNonce' ? { nonce: source.nonce } : {}),
-      ...(reason === 'BadEpoch' ? { epoch: Math.max(1, source.epoch - 1) } : {}),
+      ...(reason === 'BadReveal' ? { receiptCommit: hash32(rand) } : {}),
       ...(reason === 'BadHash' ? { respSha: hash32(rand) } : {}),
+      ...(reason === 'RevealTooEarly'
+        ? { revealOpen: new Date(Date.parse(source.blockTime) + 3_600_000).toISOString() }
+        : {}),
     };
 
     tests.push(test);
@@ -487,12 +541,13 @@ function buildAll(): {
       ...spec.agent,
       epoch: spec.epoch,
       strategyHash: spec.strategyHash,
-      // DERIVED, never hardcoded (plan T6). The ledger is accepted-only
-      // (v1.1 Q1), so the count is simply its length.
+      // DERIVED, never hardcoded (plan T6). The ledger holds revealed slots,
+      // so the count is simply its length.
       decisionCount: list.length,
-      // Not a percentage: every stored entry passed the on-chain check by
+      // Not a percentage: every revealed entry passed the on-chain check by
       // invariant I1, so there is no fraction to report (v1.1 Q1 / D15).
       verified: true,
+      currentEpoch: summarizeEpoch(spec, list),
     });
   }
 
@@ -657,15 +712,15 @@ export function getSettlements(tokenId: string): Settlement[] {
   const entries = getEntriesFor(tokenId).filter((e) => e.renter !== ZERO_ADDRESS);
 
   return entries.slice(0, 40).flatMap((e, i) => {
-    // entryIndex is non-null for every stored entry by construction; the guard
-    // exists because the type allows null and settle() is index-addressed.
-    if (e.entryIndex === null) return [];
+    // v2 settle() is slot-addressed: RentalDesk pulls the fee per REVEALED
+    // slot whose on-chain entry names this renter.
+    if (e.state !== 'revealed') return [];
     const fee = BigInt(listing.feePerDecisionWei);
     const protocolFee = (fee * BigInt(PROTOCOL_FEE_BPS)) / 10_000n;
     return [
       {
         tokenId,
-        entryIndex: e.entryIndex,
+        slot: e.slot,
         renter: e.renter,
         feeWei: fee.toString(),
         protocolFeeWei: protocolFee.toString(),

@@ -23,7 +23,7 @@ const PARTS: CommitLineParts = {
   chainId: 16661,
   tokenId: '1',
   epoch: 1,
-  nonce: 42,
+  slot: 42,
   strategyHash: '0x7d1f4a9c2e6b80d35f1a7c4e9b2d60f8a3c5e7b9d1f4a6c8e0b2d4f6a8c0e2b4',
   inputHash: '0xa1c3e5f7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3',
   renter: ZERO_ADDRESS,
@@ -46,7 +46,7 @@ describe('buildCommitLine — PRD §4 canonical layout', () => {
       'chain',
       'agent',
       'epoch',
-      'nonce',
+      'slot',
       'strategy',
       'input',
       'renter',
@@ -66,7 +66,7 @@ describe('buildCommitLine — PRD §4 canonical layout', () => {
     expect(fields.input).toHaveLength(66);
     expect(fields.chain).toBe('16661');
     expect(fields.agent).toBe('1');
-    expect(fields.nonce).toBe('42');
+    expect(fields.slot).toBe('42');
   });
 
   it('renders a null renter as the zero address, never "0x0"', () => {

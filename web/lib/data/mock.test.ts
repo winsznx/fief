@@ -16,14 +16,14 @@ describe('getEntry(txHash) — v1.1 Q1 routing key', () => {
     expect(entry).not.toBeNull();
     expect(entry?.txHash).toBe(GREEN_TX);
     expect(entry?.status).toBe('accepted');
-    expect(entry?.entryIndex).toBe(0);
+    expect(entry?.slot).toBe(0);
     expect(entry?.respData).toBeTruthy();
   });
 
   it('also resolves a tamper test, so a shared link renders instead of 404ing (D13)', async () => {
     const entry = await mockDataSource.getEntry(RED_TX);
     expect(entry).not.toBeNull();
-    expect(entry?.entryIndex).toBeNull();
+    expect(entry?.state).toBe('invalid');
     expect(entry?.isTamperTest).toBe(true);
     expect(entry?.respData).toBeTruthy();
   });
@@ -51,7 +51,7 @@ describe('getEntries / getEntriesPage are accepted-only', () => {
     const first = await mockDataSource.getEntriesPage('2', { limit: 50 });
     expect(first.nextCursor).toBe(50);
     const second = await mockDataSource.getEntriesPage('2', { limit: 50, cursor: 50 });
-    expect(second.items[0]?.entryIndex).toBe(50);
+    expect(second.items[0]?.slot).toBe(50);
   });
 });
 

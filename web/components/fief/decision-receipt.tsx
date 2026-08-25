@@ -36,6 +36,20 @@ export function DecisionCell({
   decision: DecisionEntry['decision'];
   className?: string;
 }) {
+  // A committed-but-unrevealed slot genuinely has no public direction yet, and
+  // that is the product working rather than data missing (PRD v2 §4.2). Say so
+  // instead of rendering an empty cell.
+  if (!decision) {
+    return (
+      <span
+        className={cn('text-muted-foreground inline-flex items-baseline gap-1.5 text-xs', className)}
+      >
+        <span aria-hidden>◍</span>
+        <span>sealed until reveal</span>
+      </span>
+    );
+  }
+
   return (
     <span className={cn('tnum inline-flex items-baseline gap-1.5 font-mono', className)}>
       <span aria-hidden className="text-muted-foreground">
@@ -88,7 +102,7 @@ export function DecisionReceiptRow({
       )}
     >
       <span className="tnum text-muted-foreground font-mono text-xs">
-        {entry.entryIndex === null ? '—' : `#${entry.entryIndex}`}
+        {`s${entry.slot}`}
       </span>
       <span className="tnum text-muted-foreground font-mono text-xs">
         {formatTimeShort(entry.blockTime)}
@@ -169,10 +183,9 @@ export function DecisionReceipt({
           </span>
         </div>
         <span className="tnum text-muted-foreground font-mono text-[0.6875rem]">
-          {/* A tamper test has no entry index because it was never stored
-              (v1.1 Q1) — saying so is more honest than printing a number. */}
-          {entry.entryIndex === null ? 'no entry' : `entry #${entry.entryIndex}`} · nonce{' '}
-          {entry.nonce} · epoch {entry.epoch}
+          {/* The slot exists from the moment the epoch is opened, so it is a
+              real identity even for a rejected reveal (PRD v2 §6). */}
+          slot {entry.slot} · epoch {entry.epoch} · {entry.state}
         </span>
       </header>
 

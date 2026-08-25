@@ -41,9 +41,11 @@ export async function resolveEntry(
   const [agent, entry] = await Promise.all([ds.getAgent(tokenId), ds.getEntry(rawTxHash)]);
   if (!agent || !entry) return null;
 
-  if (entry.entryIndex !== null) {
-    const [atIndex] = await ds.getEntries(tokenId, { cursor: entry.entryIndex, limit: 1 });
-    if (atIndex?.txHash.toLowerCase() !== entry.txHash.toLowerCase()) return null;
+  // Confirm the entry really belongs to this agent's ledger at the slot it
+  // claims, so a tx hash from one agent cannot be rendered under another.
+  if (entry.state === 'revealed') {
+    const [atSlot] = await ds.getEntries(tokenId, { cursor: entry.slot, limit: 1 });
+    if (atSlot?.txHash.toLowerCase() !== entry.txHash.toLowerCase()) return null;
   }
 
   return { agent, entry };

@@ -20,9 +20,9 @@ export function EntryDetail({
   agent: Agent;
   className?: string;
 }) {
-  // v1.1 Q1: a null entryIndex means the submission was never stored on-chain,
-  // so it is a tamper test rather than part of this agent's record.
-  const tamperTest = entry.entryIndex === null;
+  // A slot whose reveal failed verification never became a proven decision, so
+  // it is a tamper test rather than part of this agent's record (PRD v2 §6).
+  const tamperTest = entry.isTamperTest === true || entry.state === 'invalid';
 
   return (
     <div className={cn('flex flex-col gap-6', className)}>
@@ -31,7 +31,7 @@ export function EntryDetail({
           <Link href={`/agents/${agent.tokenId}`} className="hover:text-foreground underline-offset-4 hover:underline">
             {agent.name}
           </Link>{' '}
-          · {tamperTest ? 'tamper test' : `entry #${entry.entryIndex}`}
+          · {tamperTest ? 'tamper test' : `slot ${entry.slot}`}
         </p>
         <h1 className="heading text-2xl">
           {entry.status === 'accepted' ? 'Accepted decision' : 'Rejected submission'}

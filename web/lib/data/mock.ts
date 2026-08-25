@@ -55,44 +55,46 @@ function withRespData(entry: DecisionEntry, tokenId?: string): DecisionEntry {
   return { ...entry, ...getRespDataFor(entry, tokenId) };
 }
 
-/** Named checks mirroring the real on-chain verification order (PRD §5). */
+/**
+ * Named checks in the order `RecordBook.revealDecision` performs them (PRD v2 §5).
+ *
+ * The order matters for the receipt UI: a viewer should see exactly which gate
+ * the reveal fell at, and the contract short-circuits at the first failure.
+ */
 function checksFor(entry: DecisionEntry): VerifyCheck[] {
   const r = entry.rejectReason;
   return [
     {
-      name: 'operator is authorised for this token',
-      pass: r !== 'NotOperator',
-      detail: r === 'NotOperator' ? 'submitter is not the registered operator' : undefined,
+      name: 'disclosure window has opened',
+      pass: r !== 'RevealTooEarly',
+      detail:
+        r === 'RevealTooEarly'
+          ? 'opened before the horizon — the signal still had value'
+          : undefined,
     },
     {
-      name: 'sha256(respData) matches the signed text',
+      name: 'reveal opens the published commitment',
+      pass: r !== 'BadReveal',
+      detail:
+        r === 'BadReveal'
+          ? 'keccak(respData, sig, offset, inputHash, renter, salt) != receiptCommit'
+          : undefined,
+    },
+    {
+      name: 'sha256(respData) matches the committed hash',
       pass: r !== 'BadHash',
-      detail: r === 'BadHash' ? 'response bytes do not hash to the signed text' : undefined,
+      detail: r === 'BadHash' ? 'response bytes do not hash to what was committed' : undefined,
     },
     {
       name: 'signer matches getService().teeSignerAddress',
       pass: r !== 'BadSigner',
-      detail: r === 'BadSigner' ? 'recovered a key that is not the registered TEE signer' : undefined,
+      detail:
+        r === 'BadSigner' ? 'recovered a key that is not the registered TEE signer' : undefined,
     },
     {
-      name: 'commit line sits at the head of the message content',
-      pass: r !== 'BadAnchor',
-      detail: r === 'BadAnchor' ? 'no `"content":"` anchor at the supplied offset' : undefined,
-    },
-    {
-      name: 'commit matches sealed strategy + epoch + nonce',
+      name: 'commit line matches sealed strategy + epoch + slot',
       pass: r !== 'BadCommit',
       detail: r === 'BadCommit' ? 'one byte tampered — rejected on-chain' : undefined,
-    },
-    {
-      name: 'epoch matches the token’s current epoch',
-      pass: r !== 'BadEpoch',
-      detail: r === 'BadEpoch' ? 'entry names an epoch the token has moved past' : undefined,
-    },
-    {
-      name: 'nonce fresh for this (token, epoch)',
-      pass: r !== 'BadNonce',
-      detail: r === 'BadNonce' ? 'nonce was already consumed' : undefined,
     },
   ];
 }
@@ -189,13 +191,13 @@ export const mockDataSource: DataSource = {
   },
 
   subscribeRenterFeedWithStatus(tokenId, onMessage, onStatus) {
-    // The feed replays the agent's stored entries, which are accepted-only
-    // (v1.1 Q1) — a renter is never billed for, or notified of, a rejection.
-    // The entryIndex narrowing is what makes the feed message type honest:
-    // RenterFeedMessage.entryIndex is a plain number because every message
-    // refers to an entry that really is in the on-chain array.
-    const accepted = getEntriesFor(tokenId).filter(
-      (e): e is DecisionEntry & { entryIndex: number } => e.entryIndex !== null,
+    // The feed replays the agent's committed slots. A renter is notified of a
+    // decision at COMMIT time, while the public chain still holds only the
+    // sealed commitment — that window is what they are paying for (PRD v2 §4.2).
+    // Only slots that actually carry a decision can be delivered.
+    const deliverable = getEntriesFor(tokenId).filter(
+      (e): e is DecisionEntry & { decision: NonNullable<DecisionEntry['decision']> } =>
+        e.decision !== undefined,
     );
     let i = 0;
     let cancelled = false;
@@ -208,14 +210,16 @@ export const mockDataSource: DataSource = {
     }, 600);
 
     const timer = setInterval(() => {
-      const e = accepted[i % Math.max(accepted.length, 1)];
+      const e = deliverable[i % Math.max(deliverable.length, 1)];
       if (!e) return;
       const msg: RenterFeedMessage = {
-        entryIndex: e.entryIndex,
+        slot: e.slot,
+        epoch: e.epoch,
         tokenId,
         decision: e.decision,
         at: new Date().toISOString(),
-        txHash: e.txHash,
+        commitTxHash: e.commitTxHash,
+        ...(e.state === 'revealed' ? { revealTxHash: e.txHash } : {}),
       };
       onMessage(msg);
       i += 1;

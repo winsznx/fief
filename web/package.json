@@ -39,7 +39,8 @@
     "eslint-config-next": "16.3.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "@fief/reference": "file:../packages/reference"
   },
   "packageManager": "pnpm@11.21.0"
 }

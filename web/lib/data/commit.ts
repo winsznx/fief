@@ -6,16 +6,25 @@
  * carrying invented placeholder payloads. That makes <ByteDiffReveal> a
  * visualisation of a real difference instead of a fabricated one (D6).
  *
- * PRD §4:
+ * PRD v2 §4.3:
  *   COMMIT_LINE = "FIEFv1|book:<RecordBook 0x..40>|chain:16661|agent:<id>
- *                  |epoch:<E>|nonce:<n>|strategy:<H 0x..64>
+ *                  |epoch:<E>|slot:<k>|strategy:<H 0x..64>
  *                  |input:<inputHash 0x..64>|renter:<0x..40>"
+ *
+ * v2 replaced v1's `nonce:<n>` with `slot:<k>`. In v1 the nonce carried both
+ * ordering and replay protection; in v2 the slot index does both, because slots
+ * are fixed by the epoch schedule and each (agent, epoch, slot) accepts exactly
+ * one commit. Carrying both would be redundant and let them disagree.
+ *
+ * `packages/reference` is the source of truth for these bytes and the contract
+ * is tested against its fixtures. `commit.parity.test.ts` asserts this file
+ * agrees with it byte-for-byte, so the two cannot drift the way v1 and v2 did.
  *
  * Canonical encodings (PRD §5 step 5) — must match the runtime byte-for-byte:
  *   - addresses  : 42-char 0x-lowercase; a null renter is the ZERO ADDRESS,
  *                  never "0x0"
  *   - bytes32    : 66-char 0x-lowercase
- *   - ids/nonces : decimal ASCII
+ *   - ids/slots  : decimal ASCII
  *   - the line contains no '"', no '\', no control chars and no '/', so its
  *     bytes are identical inside a JSON string envelope (DECISIONS.md: the
  *     `FIEFv1` prefix is slash-free precisely so the optional JSON \/ escape
@@ -36,7 +45,7 @@ export interface CommitLineParts {
   chainId: number;
   tokenId: string;
   epoch: number;
-  nonce: number;
+  slot: number;
   strategyHash: `0x${string}`;
   inputHash: `0x${string}`;
   renter: `0x${string}`;
@@ -49,7 +58,7 @@ export function buildCommitLine(p: CommitLineParts): string {
     `chain:${p.chainId}`,
     `agent:${p.tokenId}`,
     `epoch:${p.epoch}`,
-    `nonce:${p.nonce}`,
+    `slot:${p.slot}`,
     `strategy:${p.strategyHash.toLowerCase()}`,
     `input:${p.inputHash.toLowerCase()}`,
     `renter:${p.renter.toLowerCase()}`,

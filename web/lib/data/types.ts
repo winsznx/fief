@@ -1,31 +1,91 @@
-export type DecisionStatus = 'accepted' | 'rejected';
 export type Direction = 'UP' | 'DOWN' | 'FLAT';
+
+/**
+ * v2 slot lifecycle (PRD v2 §6).
+ *
+ * Every scheduled slot resolves to exactly one of these, which is what makes
+ * the record complete by construction. `committed` is the sealed state: the
+ * chain knows a decision exists and when it was made, but not what it says.
+ * `missed` and `invalid` are derived from the schedule, never stored, so a
+ * decision the operator chose not to publish still shows up.
+ */
+export type SlotState = 'scheduled' | 'committed' | 'revealed' | 'missed' | 'invalid';
+
+/** Retained for the green/red proof pair, which is about a reveal outcome. */
+export type DecisionStatus = 'accepted' | 'rejected';
+
+/**
+ * Reveal-time rejections, which are the only ones a viewer ever sees as a red
+ * row. Commit-time failures (`NotOperator`, `SlotAlreadyCommitted`,
+ * `ProviderNotPinned`, `NoCommit`) are operator errors: they never produce a
+ * record entry, they produce a missed slot, so they belong to completeness
+ * rather than to the ledger.
+ */
 export type RejectReason =
-  | 'BadSigner' | 'BadNonce' | 'BadEpoch' | 'BadCommit' | 'BadHash' | 'NotOperator' | 'BadAnchor';
+  | 'BadReveal'
+  | 'BadHash'
+  | 'BadSigner'
+  | 'BadCommit'
+  | 'RevealTooEarly';
+
+/**
+ * What the chain publishes about an epoch (PRD v2 §5 EpochBook).
+ *
+ * `completenessBps` is the headline number and the thing v1 could not produce:
+ * revealed over scheduled, in basis points.
+ */
+export interface EpochSummary {
+  epochId: number;
+  market: string;
+  cadenceSeconds: number;
+  horizonSeconds: number;
+  maxCommitDelay: number;
+  disclosureDelay: number;
+  startTime: string;           // ISO 8601
+  slotCount: number;
+  committed: number;
+  revealed: number;
+  missed: number;
+  invalid: number;
+  completenessBps: number;     // 10000 == 100%
+  finalized: boolean;
+}
 
 export interface Decision { dir: Direction; conf: number; size: number } // conf,size in 0..1
 
 export interface DecisionEntry {
-  // v1.1 (Q1) — on-chain `entries[]` is ACCEPTED-ONLY: a rejected submission
-  // reverts, or emits a DecisionRejected event, and is never appended. So a
-  // rejected entry has no array index at all, hence null. Detail and deep-link
-  // routes therefore key on `txHash`, never on this.
-  entryIndex: number | null;
-  status: DecisionStatus;      // green | red
-  rejectReason?: RejectReason; // present iff status==='rejected'
-  // v1.1 (Q1) — a red entry is a DELIBERATE tamper demo, not a failed decision
-  // by the agent. Flagged so no surface can present it as part of a record.
-  isTamperTest?: boolean;
-  decision: Decision;          // parsed from the signed response content
-  nonce: number;
+  // v2 — a slot is the identity of a decision. It replaces v1's entryIndex and
+  // nonce together: the schedule fixes it in advance, so it exists before the
+  // decision does and cannot be renumbered afterwards.
+  slot: number;
   epoch: number;
+  state: SlotState;
+
+  // Kept for the /proof green-vs-red pair, which is about one reveal outcome
+  // rather than about the agent's record.
+  status: DecisionStatus;
+  rejectReason?: RejectReason; // present iff status==='rejected'
+  // A red entry is a DELIBERATE tamper demo, not a failed decision by the
+  // agent. Flagged so no surface can present it as part of a record.
+  isTamperTest?: boolean;
+
+  // v2 — undefined while the slot is merely `committed`. The public learns the
+  // direction only at reveal, which is the entire point of §4.2: the renter is
+  // paying for the window in which this is still private.
+  decision?: Decision;
+
+  committedAt: string;         // ISO 8601 — when the sealed commitment landed
+  commitDeadline: string;      // ISO 8601 — the deadline it had to beat
+  revealOpen: string;          // ISO 8601 — when the disclosure window opens
+  commitTxHash: `0x${string}`;
+  receiptCommit: `0x${string}`; // the sealed commitment published at commit time
   reqSha: `0x${string}`;       // 32-byte hash (request body; sealed — hash only)
   respSha: `0x${string}`;      // 32-byte hash (signed response bytes)
   teeSigner: `0x${string}`;    // 20-byte address (recovered TEE signer)
   provider: `0x${string}`;     // 20-byte 0G Compute provider address
   inputHash: `0x${string}`;    // 32-byte sha256 of the market snapshot
   renter: `0x${string}`;       // 20-byte; zero address if none
-  txHash: `0x${string}`;
+  txHash: `0x${string}`;       // the reveal tx (or the rejected attempt)
   chainScanUrl: string;        // https://chainscan.0g.ai/tx/<txHash>
   blockTime: string;           // ISO 8601
 
@@ -48,7 +108,7 @@ export interface Agent {
   storageRoot: `0x${string}`;  // 0G Storage merkle root of the AES-256-GCM blob
   network: 'mainnet' | 'testnet';
   domain: string;              // e.g. "BTC short-horizon direction"
-  decisionCount: number;       // v1.1 (Q1) — accepted, stored entries only
+  decisionCount: number;       // revealed, verified slots only
   /**
    * v1.1 (Q1) — badge only: every stored entry passed the on-chain check by
    * invariant I1, so a fraction is either always 100% or actively misleading.
@@ -70,6 +130,10 @@ export interface Agent {
   // PRD §6 agent state machine. Drives §5.3 marketplace filters and the
   // §5.7 console's per-agent available actions.
   lifecycle: AgentLifecycle;
+
+  // ── v2 ─────────────────────────────────────────────────────────────────
+  /** The agent's current forward epoch, or null before one is opened. */
+  currentEpoch: EpochSummary | null;
 }
 
 export interface Listing {
@@ -100,19 +164,30 @@ export interface Grant {
   decisionsUsed: number;
 }
 
+/**
+ * What a renter receives at COMMIT time (PRD v2 §4.2, §12).
+ *
+ * This is the product: the cleartext direction plus the full receipt, delivered
+ * while the public chain still holds only a sealed commitment. `commitTxHash`
+ * lets the renter verify the payload against the on-chain `receiptCommit`
+ * before acting, rather than trusting the feed.
+ */
 export interface RenterFeedMessage {
-  entryIndex: number;          // links to the on-chain DecisionEntry
+  slot: number;                // links to the on-chain slot
+  epoch: number;
   tokenId: string;
   decision: Decision;
   at: string;                  // ISO
-  txHash: `0x${string}`;
+  commitTxHash: `0x${string}`;
+  /** Present once the disclosure window has passed and the slot was opened. */
+  revealTxHash?: `0x${string}`;
 }
 
 export interface VerifyCheck { name: string; pass: boolean; detail?: string }
 export interface VerifyResult {
   txHash: `0x${string}`;
   network: 'mainnet' | 'testnet';
-  checks: VerifyCheck[];       // e.g. "signer matches getService().teeSignerAddress", "commit matches", "nonce fresh"
+  checks: VerifyCheck[];       // e.g. "signer matches getService().teeSignerAddress", "reveal opens the commitment"
   entry?: DecisionEntry;
 
   // ── v1.1 [12] ──────────────────────────────────────────────────────────
@@ -157,7 +232,7 @@ export interface EntriesPage {
 /** v1.1 [6] — §5.7 "settlement view (per-entry, per-renter)". Protocol fee is 200 bps (PRD §13). */
 export interface Settlement {
   tokenId: string;
-  entryIndex: number;
+  slot: number;                // v2 — settle() is slot-addressed
   renter: `0x${string}`;
   feeWei: string;
   protocolFeeWei: string;
@@ -201,8 +276,8 @@ export interface ShowcasePair {
    * Attribution for the GREEN entry only — it is a real accepted ledger entry
    * and belongs to an agent's record.
    *
-   * Optional (D14) because the red half is a tamper test with no agent and no
-   * entryIndex, so the pair as a whole cannot be attributed to one record. In
+   * Optional (D14) because the red half is a tamper test that never became a
+   * stored decision, so the pair as a whole cannot be attributed to one record. In
    * live mode the pair is resolved from NEXT_PUBLIC_GREEN_TX / _RED_TX, where
    * the token may not be known at all.
    */
