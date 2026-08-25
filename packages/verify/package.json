@@ -1,0 +1,24 @@
+{
+  "name": "@fief/verify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent read-only verifier for Fief records on 0G. No trust in the Fief frontend or runtime required.",
+  "license": "MIT",
+  "bin": { "fief-verify": "./src/cli.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck",
+    "start": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@fief/reference": "file:../reference",
+    "viem": "^2.55.18"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@11.21.0"
+}

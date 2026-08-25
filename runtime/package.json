@@ -14,7 +14,8 @@
     "settle": "tsx src/cli/settle.ts",
     "reputation": "tsx src/cli/reputation.ts",
     "test": "vitest run",
-    "verify": "pnpm typecheck && pnpm test"
+    "verify": "pnpm typecheck && pnpm test",
+    "campaign": "tsx src/cli/campaign.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "0.9.0",

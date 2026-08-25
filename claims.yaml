@@ -1,0 +1,176 @@
+# Claims ledger (PRD v2 §14)
+#
+# Every public claim Fief makes, with the rung it is proven at and the evidence.
+# `scripts/check-claims.mjs` fails CI if a number quoted in the README is not
+# backed by a row here.
+#
+# Rungs: 1 reference model · 2 unit/property · 3 adversarial · 4 real SDK against
+# a live provider · 5 testnet composed · 6 mainnet deployment · 7 mainnet
+# composed transactions · 8 browser flow · 9 read-only independent verifier ·
+# 10 multi-day forward campaign
+#
+# Never counted as evidence: deployed-but-unused contracts, mocked calls,
+# predicted gas, local runs presented as public, or testnet activity presented
+# as mainnet.
+
+meta:
+  network: 0G mainnet
+  chainId: 16661
+  updated: 2026-08-25
+
+contracts:
+  recordBook: "0x40eB003340f467e096F8Ae30f8696bE40Eba922c"
+  epochBook: "0x9f02bfBbc52fD91d1899C298B71AF1871CA45DF8"
+  fiefAgent: "0x4db74faF047160893Aa0dabC9A1B8F3297570a68"
+  rentalDesk: "0x75C6ce6c6Cc40c922B30F985e75580C32Cd78e57"
+
+claims:
+  - id: tee-receipt-verified-onchain
+    claim: >
+      Every revealed entry carries an ECDSA signature over
+      sha256(request):sha256(response), recovered on-chain to the TEE signer 0G
+      registers for that provider.
+    rung: 9
+    status: verified
+    evidence:
+      - "tx 0xdecf4eed72087b518ae9212f0774a070a8776d303ff0f96e0e04aa96e3fffe98"
+      - "packages/verify: fief-verify --tx 0xdecf4eed… (6/6)"
+      - "contracts/test/RecordBook.t.sol"
+
+  - id: signer-read-live
+    claim: >
+      The enclave key is read live from 0G's InferenceServing contract; no admin
+      override is set on mainnet.
+    rung: 7
+    status: verified
+    provider: "0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D"
+    evidence:
+      - "expectedTeeSigner(0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D) -> 0xA46EA4FC5889AD35A1487e1Ed04dCcfa872146B9"
+      - "pinnedSigner returns the zero address, so the read above is live"
+      - "provider model glm-5.2, TeeML, acknowledged on-chain"
+
+  - id: schedule-is-prospective
+    claim: >
+      An epoch's schedule is fixed on-chain before its own first slot, so the
+      record cannot be assembled after outcomes were known.
+    rung: 9
+    status: verified
+    evidence:
+      - "EpochBook.openEpoch requires startTime >= block.timestamp"
+      - "fief-verify --agent 5: openedAt 1787646861 <= startTime 1787646870"
+      - "contracts/test/EpochBook.t.sol::test_openEpoch_rejectsStartTimeInPast"
+
+  - id: no-late-commits
+    claim: >
+      No commitment is accepted after its slot deadline.
+    rung: 9
+    status: verified
+    evidence:
+      - "RecordBook.commitDecision requires block.timestamp <= slotCommitDeadline"
+      - "runtime adversarial run: late commit rejected SlotDeadlinePassed (mainnet)"
+      - "fief-verify --agent 5: 0 late"
+
+  - id: completeness-is-total
+    claim: >
+      Every scheduled slot resolves to committed, missed or invalid; the
+      published completeness matches an independent recount.
+    rung: 9
+    status: verified
+    evidence:
+      - "EpochBook.finalizeEpoch asserts committed + missed == slotCount"
+      - "fief-verify --agent 5 --epoch 0: published matches recount, 100%"
+      - "packages/reference: 256-run property test on slot totality"
+
+  - id: canonical-run
+    claim: >
+      Agent 5's canonical run: strategy sealed to 0G Storage, agent registered
+      with its commitment and root, epoch opened, slot committed sealed, then
+      revealed and verified.
+    rung: 7
+    status: verified
+    evidence:
+      - "register  0x0b851c43676ff440c611ba7f8700e1f44bb0f059a06e28eeda32e20cd266c53f"
+      - "openEpoch 0x7fc60c5c6db8d82605f4168b4c14f412d416272dc2d6b14c681518d9291d0527"
+      - "commit    0xb1cf572f94cb2404a7781f207b21883a5a444b5387d563b2e34ca5ad83f20cdb"
+      - "reveal    0xdecf4eed72087b518ae9212f0774a070a8776d303ff0f96e0e04aa96e3fffe98"
+
+  - id: agent-5-completeness
+    claim: "Agent 5, epoch 0: 2 of 2 scheduled slots proven, 100% completeness."
+    rung: 9
+    status: verified
+    evidence:
+      - "completenessBps(5,0) -> 10000"
+      - "fief-verify --agent 5 --epoch 0 (7/7)"
+
+  - id: tamper-rejected
+    claim: >
+      A reveal with one tampered byte is rejected on-chain, and the honest
+      reveal of that same slot still succeeds afterwards.
+    rung: 7
+    status: verified
+    evidence:
+      - "red tx 0x3f12f57405b597001e18dc75d0f21d86c6d712bf9726db74d0b320046bf04f8c (DecisionRejected: BadReveal)"
+      - "repair tx 0x210d43176b9a950d21b16c778af1de419a62e4f4da1bc21239433b9f63a4e21c"
+
+  - id: strategy-sealed-on-storage
+    claim: >
+      The strategy is encrypted AES-256-GCM and stored on 0G Storage; only its
+      merkle root and keccak commitment are public.
+    rung: 7
+    status: verified
+    evidence:
+      - "storage tx 0x8140d9b27b01eb3af8b5a5ac31ef0fbb0d9efdf3aca964b01eb220436ca53677"
+      - "storageRoot 0xaf4d2e5c9c3eca0525f4c47509855b893dd832045a265373078d83bb031f7fee"
+
+  - id: rental-settled
+    claim: >
+      A rental was settled on mainnet from a wallet that is not the deployer,
+      and the renter verified the signal before any reveal existed.
+    rung: 7
+    status: verified
+    evidence:
+      - "renter 0xae8caDeDa5B0C762ECC2a242544A6A1b04Ebd40E"
+      - "settle tx 0x5c7dcb515890142acbebf850956f014202f3e46c70833d0a56bb5902eab464ec"
+
+  - id: stronger-than-sdk
+    claim: >
+      Fief's on-chain check is strictly stronger than 0G's client SDK, which
+      trusts the provider-returned text and only ecrecovers it.
+    rung: 4
+    status: verified
+    evidence:
+      - "0g-compute-ts-sdk processResponse does not recompute the hashes (source read 2026-08-19)"
+      - "RecordBook rebuilds the 129-byte text from real request and response bytes"
+
+  - id: serve-proof-valid
+    claim: >
+      Fief issues ERC-8004 serve proofs that 0G's own SDK verifier accepts, bound
+      to one redeemer and one slot.
+    rung: 2
+    status: verified
+    evidence:
+      - "runtime/src/reputation.test.ts (7 tests, via verifyServeProofSignature)"
+      - "pnpm reputation against the live attestor (6/6)"
+
+# Claimed nowhere, and deliberately so.
+not_claimed:
+  - "That decisions were profitable. The record proves provenance, timing and completeness, never alpha."
+  - "That the request contained the sealed strategy. The commitment is declared on the response side; an authorized request audit closes this."
+  - "Any cryptographic strength from the ERC-7857 draft verifier. Fief no longer depends on it."
+  - "That a renter cannot approximate the strategy by observing many outputs."
+  - "Mainnet Agentic ID or ERC-8004. Those registries are testnet-only upstream."
+
+open:
+  - id: erc8004-feedback-onchain
+    claim: "A renter's ERC-8004 feedback redeemed on-chain against a serve proof."
+    rung: 0
+    status: not-started
+    blocked_on: >
+      giveFeedback needs an agent minted through a trusted attestor into 0G's
+      TEE sandbox. Scoped in PRD v2 §16.2.
+
+  - id: forward-campaign
+    claim: "A multi-day forward campaign of 100+ slots."
+    rung: 0
+    status: not-started
+    blocked_on: "Wall-clock time. Needs the runtime running continuously."
