@@ -175,12 +175,18 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
 
     // 5-minute cadence with occasional gaps, so the record looks like a real
     // run rather than a synthetic sequence.
+    //
+    // `blockTime` is when the REVEAL landed, so it must be at or after the
+    // slot's disclosure window opens. Deriving it from the snapshot time alone
+    // put reveals before their own reveal window, which the slot timeline
+    // rendered as an impossible ordering.
     const jitter = rand() < 0.08 ? Math.floor(rand() * 6) * 300_000 : 0;
-    const blockTime = new Date(start + i * 300_000 + jitter).toISOString();
+    const snapAt = start + i * 300_000;
+    const revealOpenAt = snapAt + 300_000 + 60_000;
+    const blockTime = new Date(revealOpenAt + 4_000 + jitter).toISOString();
 
     const tx = txHash(rand);
     const commitTx = txHash(rand);
-    const snapAt = start + i * 300_000;
     entries.push({
       slot: i,
       epoch: spec.epoch,
@@ -189,7 +195,7 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
       decision,
       committedAt: new Date(snapAt + 12_000).toISOString(),
       commitDeadline: new Date(snapAt + 30_000).toISOString(),
-      revealOpen: new Date(snapAt + 300_000 + 60_000).toISOString(),
+      revealOpen: new Date(revealOpenAt).toISOString(),
       commitTxHash: commitTx,
       receiptCommit: hash32(rand),
       reqSha: hash32(rand),

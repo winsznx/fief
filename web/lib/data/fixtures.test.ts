@@ -227,3 +227,31 @@ describe('stress fixture', () => {
     expect(list.every((e) => e.status === 'accepted')).toBe(true);
   });
 });
+
+describe('slot timing is physically possible (PRD v2 §6)', () => {
+  it('never reveals a slot before its disclosure window opens', () => {
+    for (const agent of getAgents()) {
+      for (const e of getEntriesFor(agent.tokenId)) {
+        if (e.state !== 'revealed') continue;
+        // A reveal landing before revealOpen would be rejected on-chain with
+        // RevealTooEarly, so a fixture that shows one is describing a
+        // transaction that could not exist.
+        expect(
+          Date.parse(e.blockTime),
+          `${agent.tokenId} slot ${e.slot} revealed before its window`,
+        ).toBeGreaterThanOrEqual(Date.parse(e.revealOpen));
+      }
+    }
+  });
+
+  it('always commits before the slot deadline', () => {
+    for (const agent of getAgents()) {
+      for (const e of getEntriesFor(agent.tokenId)) {
+        expect(
+          Date.parse(e.committedAt),
+          `${agent.tokenId} slot ${e.slot} committed late`,
+        ).toBeLessThanOrEqual(Date.parse(e.commitDeadline));
+      }
+    }
+  });
+});

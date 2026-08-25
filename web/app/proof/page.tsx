@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ByteDiffReveal } from '@/components/fief/byte-diff-reveal';
 import { DecisionReceipt } from '@/components/fief/decision-receipt';
+import { SlotTimeline } from '@/components/fief/slot-timeline';
 import { VerifyCommand } from '@/components/fief/verify-command';
 import { Button } from '@/components/ui/button';
 import { APPROVED, LIMITS } from '@/lib/copy';
@@ -62,7 +63,14 @@ export default async function ProofPage() {
         </p>
       </header>
 
-      {/* ── The difference, first ───────────────────────────────────────── */}
+      {/* ── The order, first ────────────────────────────────────────────── */}
+      {/* Before the byte-level diff, establish WHEN. The tamper story only
+          matters if the reader already believes the commitment was sealed
+          before the outcome was knowable, and a pair of tx links cannot show
+          that on its own. */}
+      <SlotTimeline entry={green} />
+
+      {/* ── The difference ──────────────────────────────────────────────── */}
       <ByteDiffReveal green={green} red={red} />
 
       {/* ── The two outcomes ────────────────────────────────────────────── */}

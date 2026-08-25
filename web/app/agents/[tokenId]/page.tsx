@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle2, KeyRound } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { CompletenessBar } from '@/components/fief/completeness-bar';
 import { DecisionLedger } from '@/components/fief/decision-ledger';
 import { Hash } from '@/components/fief/hash';
 import { HonestStatusBadge } from '@/components/fief/honest-status-badge';
@@ -72,7 +73,7 @@ export default async function AgentRecordPage({ params }: PageProps<'/agents/[to
         </div>
 
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Decisions recorded" value={formatCount(agent.decisionCount)} />
+          <Stat label="Decisions proven" value={formatCount(agent.decisionCount)} />
           {/* v1.1 Q1: a verified badge, never a percentage. Every stored entry
               passed the on-chain check by invariant I1, so a fraction would be
               either always 100% or misleading. */}
@@ -103,6 +104,12 @@ export default async function AgentRecordPage({ params }: PageProps<'/agents/[to
           <HonestStatusBadge decisions={agent.decisionCount} className="ml-auto" />
         </div>
       </header>
+
+      {/* ── Forward record ─────────────────────────────────────────────── */}
+      {/* Placed above the ledger deliberately: the completeness denominator is
+          the claim, and the rows beneath it are the evidence. Reading them the
+          other way round is how a partial record passes for a complete one. */}
+      {agent.currentEpoch !== null && <CompletenessBar epoch={agent.currentEpoch} />}
 
       {/* ── Sealed strategy + context ──────────────────────────────────── */}
       {/* PnlContext returns null when the agent has no series (D16), so the
