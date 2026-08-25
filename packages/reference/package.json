@@ -1,0 +1,30 @@
+{
+  "name": "@fief/reference",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fief executable reference model. Pure TypeScript, zero chain deps. Specification until execution disproves it (PRD v2 §11).",
+  "license": "MIT",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "fixtures": "tsx src/fixtures/generate.ts",
+    "verify": "pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "fast-check": "^3.23.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "dependencies": {
+    "@noble/curves": "^1.8.1",
+    "@noble/hashes": "^1.7.1"
+  }
+}
