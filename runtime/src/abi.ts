@@ -87,6 +87,16 @@ export const epochBookAbi = [
   },
   {
     type: 'function',
+    name: 'specOf',
+    stateMutability: 'view',
+    inputs: [
+      {name: 'agentId', type: 'uint256'},
+      {name: 'epochId', type: 'uint64'},
+    ],
+    outputs: [{type: 'tuple', components: epochSpecComponents}],
+  },
+  {
+    type: 'function',
     name: 'slotSnapshotTime',
     stateMutability: 'view',
     inputs: [

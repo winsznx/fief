@@ -154,6 +154,15 @@ export class BookClient {
     return this.send(this.deployment.epochBook, epochBookAbi, 'finalizeEpoch', [agentId, epochId]);
   }
 
+  async epochSpec(agentId: bigint, epochId: bigint): Promise<EpochSpecArgs> {
+    return (await this.pub.readContract({
+      address: this.deployment.epochBook,
+      abi: epochBookAbi,
+      functionName: 'specOf',
+      args: [agentId, epochId],
+    })) as EpochSpecArgs;
+  }
+
   async epochMeta(agentId: bigint, epochId: bigint) {
     return (await this.pub.readContract({
       address: this.deployment.epochBook,
@@ -362,6 +371,31 @@ export class BookClient {
     });
     await this.pub.waitForTransactionReceipt({hash, timeout: 120_000});
     return hash;
+  }
+
+  /** The transaction that revealed a slot, found from the DecisionRevealed log. */
+  async entryRevealTx(agentId: bigint, epochId: bigint, slot: number): Promise<ViemHex | null> {
+    const logs = await this.pub.getLogs({
+      address: this.deployment.recordBook,
+      event: {
+        type: 'event',
+        name: 'DecisionRevealed',
+        inputs: [
+          {name: 'agentId', type: 'uint256', indexed: true},
+          {name: 'epochId', type: 'uint64', indexed: true},
+          {name: 'slot', type: 'uint32', indexed: true},
+          {name: 'teeSigner', type: 'address', indexed: false},
+        ],
+      },
+      args: {agentId, epochId, slot},
+      fromBlock: 42582000n,
+      toBlock: 'latest',
+    });
+    return (logs[0]?.transactionHash as ViemHex) ?? null;
+  }
+
+  getTransaction(hash: ViemHex) {
+    return this.pub.getTransaction({hash});
   }
 
   async now(): Promise<bigint> {

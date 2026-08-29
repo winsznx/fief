@@ -38,3 +38,7 @@ Thumbs.db
 
 # Public deployment config for the Cloudflare build (addresses and tx hashes only).
 !web/.env.production
+
+# Campaign runtime artifacts. The record lives on chain; these are local traces.
+*.out
+*.spool.jsonl

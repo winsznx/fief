@@ -7,19 +7,25 @@
  * is eight hours no amount of engineering compresses, which is why this should
  * be started early and left alone.
  *
- * Restartable on purpose. It reads the epoch's schedule off-chain state, skips
- * slots already committed, and lets slots whose deadline has passed stay missed.
- * A crash costs the slots it was actually down for and nothing else, which is
- * the honest outcome rather than a backfilled one.
+ * Restartable on purpose. It reads the epoch's schedule off chain, skips slots
+ * already committed, replays spooled commits that are still owed a reveal, and
+ * lets slots whose deadline has passed stay missed. A crash costs the slots it
+ * was actually down for and nothing else, which is the honest outcome rather
+ * than a backfilled one.
  *
- *   NETWORK=mainnet AGENT=7 EPOCH=0 pnpm campaign
+ *   NETWORK=mainnet AGENT=7 EPOCH=1 pnpm campaign
  *
- * Open the epoch first with `pnpm epoch --open-only`, or pass SLOT_COUNT and
- * CADENCE to have this open one.
+ * Opens the epoch if it is not open yet, using SLOT_COUNT and CADENCE; resumes
+ * it otherwise. AGENT selects an existing agent, and omitting it registers a
+ * new one.
+ *
+ * Run it under `supervise-campaign.sh` rather than bare. The first mainnet run
+ * stopped at slot 33 of 288 because the machine slept, and those 255 misses are
+ * now a permanent part of agent 7 epoch 0.
  */
 
 import {randomBytes} from 'node:crypto';
-import {appendFileSync} from 'node:fs';
+import {appendFileSync, existsSync, readFileSync} from 'node:fs';
 
 import {ZERO_ADDRESS, ZERO_HASH} from '@fief/reference';
 import type {Address} from '@fief/reference';
@@ -39,6 +45,7 @@ const MAX_COMMIT_DELAY = Number(process.env.MAX_COMMIT_DELAY ?? '120');
 const DISCLOSURE_DELAY = Number(process.env.DISCLOSURE_DELAY ?? '60');
 const LEAD = Number(process.env.LEAD ?? '120');
 const LOG = process.env.CAMPAIGN_LOG ?? 'campaign.log';
+const SPOOL = process.env.CAMPAIGN_SPOOL ?? 'campaign.spool.jsonl';
 
 const log = (...a: unknown[]) => {
   const line = a.map(String).join(' ');
@@ -51,6 +58,50 @@ const log = (...a: unknown[]) => {
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Committed slots wait out their disclosure delay before they can be revealed,
+ * and the only copy of the plaintext needed to reveal them lives in this
+ * process. A crash in that window used to strand them: the restart sees them as
+ * already committed, skips them, and they finalize as `invalid` forever — the
+ * one outcome that is neither the agent's fault nor recoverable.
+ *
+ * So every commit is spooled to disk the moment it lands. Reveal itself is
+ * idempotent against the chain, so the spool never needs pruning; startup just
+ * drops the entries the chain already has.
+ */
+function spool(m: RenterMessage): void {
+  try {
+    appendFileSync(SPOOL, `${JSON.stringify(m)}\n`);
+  } catch (e) {
+    log(`  WARN: could not spool slot ${m.slot}; a crash before its reveal would lose it: ${(e as Error).message}`);
+  }
+}
+
+async function recoverSpool(
+  book: BookClient,
+  agentId: bigint,
+  epochId: bigint,
+): Promise<RenterMessage[]> {
+  if (!existsSync(SPOOL)) return [];
+
+  const parsed: RenterMessage[] = [];
+  for (const line of readFileSync(SPOOL, 'utf8').split('\n')) {
+    if (line.trim() === '') continue;
+    try {
+      parsed.push(JSON.parse(line) as RenterMessage);
+    } catch {
+      // A torn last line from a hard kill. Everything before it is still good.
+    }
+  }
+
+  const bySlot = new Map(parsed.map((m) => [m.slot, m]));
+  const out: RenterMessage[] = [];
+  for (const m of bySlot.values()) {
+    if (!(await book.isRevealed(agentId, epochId, m.slot))) out.push(m);
+  }
+  return out.sort((a, b) => a.slot - b.slot);
+}
+
 async function main(): Promise<void> {
   const pk = requireEnv('PRIVATE_KEY');
   const provider = PROVIDERS.glm;
@@ -61,14 +112,25 @@ async function main(): Promise<void> {
   const H = strategyHash(strategy);
 
   let agentId: bigint;
-  let epochId = BigInt(process.env.EPOCH ?? '0');
+  const epochId = BigInt(process.env.EPOCH ?? '0');
 
   if (process.env.AGENT !== undefined) {
     agentId = BigInt(process.env.AGENT);
-    log(`resuming agent ${agentId} epoch ${epochId}`);
   } else {
     const reg = await book.register(H as ViemHex, ZERO_HASH as ViemHex, 'BTC short-horizon direction');
     agentId = reg.agentId;
+  }
+
+  // Branch on what the chain says, not on which variables the caller set. The
+  // first version opened an epoch only when AGENT was unset, so pointing a
+  // restart at a second epoch of an existing agent skipped the open and then
+  // died on the first slot read. Resuming and opening are decided by
+  // `meta.opened`, which is the only thing that actually distinguishes them.
+  const meta = await book.epochMeta(agentId, epochId);
+
+  if (meta.opened) {
+    log(`resuming agent ${agentId} epoch ${epochId}`);
+  } else {
     const startTime = (await book.now()) + BigInt(LEAD);
     await book.openEpoch(
       agentId,
@@ -92,6 +154,15 @@ async function main(): Promise<void> {
     log(`  starts ${new Date(Number(startTime) * 1000).toISOString()}`);
   }
 
+  // The schedule on chain wins over the environment. A resume with a different
+  // SLOT_COUNT must not silently walk past the end of the real schedule, or
+  // stop short of it and leave provable slots uncommitted.
+  const spec = await book.epochSpec(agentId, epochId);
+  const slotCount = spec.slotCount;
+  if (slotCount !== SLOT_COUNT) {
+    log(`  schedule on chain is ${slotCount} slots; ignoring SLOT_COUNT=${SLOT_COUNT}`);
+  }
+
   const ctx = {
     agentId,
     epochId,
@@ -102,12 +173,16 @@ async function main(): Promise<void> {
     strategy,
   };
 
-  const pending: RenterMessage[] = [];
+  const pending = await recoverSpool(book, agentId, epochId);
+  if (pending.length > 0) {
+    log(`  recovered ${pending.length} committed slot(s) still owed a reveal: ${pending.map((m) => m.slot).join(', ')}`);
+  }
+
   let committed = 0;
   let missed = 0;
   let revealed = 0;
 
-  for (let slot = 0; slot < SLOT_COUNT; slot += 1) {
+  for (let slot = 0; slot < slotCount; slot += 1) {
     const t = await book.slotTimes(agentId, epochId, slot);
     const now = await book.now();
 
@@ -134,6 +209,7 @@ async function main(): Promise<void> {
 
     if (out.kind === 'committed') {
       committed += 1;
+      spool(out.message);
       pending.push(out.message);
       log(`slot ${slot}: COMMITTED ${took}s ${out.message.decision ?? ''}`);
     } else {
@@ -181,9 +257,9 @@ async function main(): Promise<void> {
     pending.shift();
   }
 
-  const meta = await book.epochMeta(agentId, epochId);
+  const final = await book.epochMeta(agentId, epochId);
   log(`\ncampaign done: agent ${agentId} epoch ${epochId}`);
-  log(`  ${meta.revealedCount} revealed of ${SLOT_COUNT} scheduled`);
+  log(`  ${final.revealedCount} revealed of ${slotCount} scheduled`);
   log(`  completeness ${(await book.completenessBps(agentId, epochId)) / 100}%`);
 }
 
