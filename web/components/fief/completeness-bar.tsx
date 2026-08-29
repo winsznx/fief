@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDashed, CircleSlash, Lock } from 'lucide-react';
+import { CheckCircle2, CircleDashed, CircleSlash, Clock, Lock } from 'lucide-react';
 
 import type { EpochSummary } from '@/lib/data/types';
 import { formatCount } from '@/lib/format';
@@ -53,7 +53,17 @@ const SEGMENTS = [
     icon: CircleDashed,
     bar: 'bg-border',
     text: 'text-muted-foreground',
-    hint: 'scheduled and never committed — a decision the agent did not make in time',
+    hint: 'scheduled, came due, and was never committed — a decision the agent did not make in time',
+  },
+  {
+    // Kept visually distinct from missed. A slot that has not come due is not
+    // a failure, and conflating the two makes every running agent look broken.
+    key: 'pending' as const,
+    label: 'not yet due',
+    icon: Clock,
+    bar: 'bg-border/40',
+    text: 'text-muted-foreground',
+    hint: 'scheduled for later in this epoch; the deadline has not arrived',
   },
 ];
 
@@ -73,11 +83,16 @@ export function CompletenessBar({
     committed: sealed,
     invalid: epoch.invalid,
     missed: epoch.missed,
+    pending: epoch.pending,
   };
 
   const total = epoch.slotCount || 1;
   const pct = (n: number) => (n / total) * 100;
+  // Measured against slots that have come DUE, not the whole schedule. A
+  // running epoch is mostly future, and counting the future as failure made a
+  // healthy agent three hours into a 288-slot run read as 10.76%.
   const complete = (epoch.completenessBps / 100).toFixed(epoch.completenessBps % 100 === 0 ? 0 : 2);
+  const running = epoch.pending > 0;
 
   return (
     <section className={cn('surface flex flex-col gap-4 p-5', className)} aria-label="Epoch completeness">
@@ -91,11 +106,17 @@ export function CompletenessBar({
         </p>
       </header>
 
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="tnum font-mono text-3xl font-semibold tracking-tight">{complete}%</span>
         <span className="text-muted-foreground text-sm">
-          {formatCount(epoch.revealed)} of {formatCount(epoch.slotCount)} scheduled slots proven
+          {formatCount(epoch.revealed)} of {formatCount(epoch.due)}{' '}
+          {running ? 'slots due so far' : 'scheduled slots'} proven
         </span>
+        {running ? (
+          <span className="eyebrow w-full sm:w-auto">
+            epoch running · {formatCount(epoch.pending)} not yet due
+          </span>
+        ) : null}
       </div>
 
       {/*
@@ -104,7 +125,12 @@ export function CompletenessBar({
       */}
       <div
         role="img"
-        aria-label={`${epoch.revealed} revealed, ${sealed} sealed, ${epoch.invalid} invalid, ${epoch.missed} missed, of ${epoch.slotCount} scheduled slots`}
+        aria-label={
+          `${epoch.revealed} revealed, ${sealed} sealed, ${epoch.invalid} invalid, ` +
+          `${epoch.missed} missed of ${epoch.due} due so far` +
+          (running ? `, ${epoch.pending} not yet due` : '') +
+          `, in a ${epoch.slotCount}-slot schedule`
+        }
         className="bg-border/40 flex h-2.5 w-full overflow-hidden rounded-full"
       >
         {SEGMENTS.map((s) =>
@@ -143,6 +169,17 @@ export function CompletenessBar({
         <span className="tnum font-mono">{epoch.maxCommitDelay}s</span> to be committed. A slot the
         agent did not commit in time stays counted as missed, so the denominator cannot be edited
         after the fact.
+        {running ? (
+          <>
+            {' '}
+            The contract publishes{' '}
+            <span className="tnum font-mono">{(epoch.lifetimeBps / 100).toFixed(2)}%</span> for this
+            epoch, measured over all {formatCount(epoch.slotCount)} slots including the ones still
+            ahead. That is the number{' '}
+            <span className="font-mono">completenessBps</span> returns, and it is the one that will
+            be correct once the epoch finishes.
+          </>
+        ) : null}
       </p>
     </section>
   );

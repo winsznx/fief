@@ -43,11 +43,25 @@ export interface EpochSummary {
   disclosureDelay: number;
   startTime: string;           // ISO 8601
   slotCount: number;
+  /**
+   * Slots whose commit deadline has passed. The honest denominator while an
+   * epoch is still running: a slot that has not come due yet is not a miss.
+   */
+  due: number;
+  /** Scheduled but not yet due. Neither a success nor a failure. */
+  pending: number;
   committed: number;
   revealed: number;
   missed: number;
   invalid: number;
-  completenessBps: number;     // 10000 == 100%
+  /**
+   * revealed / due, in basis points. Measured against what has actually come
+   * due, so a running epoch is not reported as failing simply because most of
+   * its schedule is still in the future.
+   */
+  completenessBps: number;
+  /** revealed / slotCount. Only meaningful once the epoch is finalized. */
+  lifetimeBps: number;
   finalized: boolean;
 }
 

@@ -81,6 +81,24 @@ claims:
       - "fief-verify --agent 5 --epoch 0: published matches recount, 100%"
       - "packages/reference: 256-run property test on slot totality"
 
+  - id: running-epoch-shows-two-denominators
+    claim: >
+      While an epoch is still running the app shows completeness over slots that
+      have come DUE, and prints the contract's own whole-schedule number beside
+      it. Neither is hidden, so the page and `cast call completenessBps` can be
+      reconciled on screen.
+    rung: 8
+    status: verified
+    evidence:
+      - "web/lib/data/live.ts readEpochSummary derives due/pending from spec timing"
+      - "web/components/fief/completeness-bar.tsx renders both, labelled"
+      - "agent 7 mid-run: 33 of 33 due proven, contract publishes 10.76% over 288 slots"
+    why: >
+      Deriving missed as slotCount - committed counted the unplayed future as
+      failure: a healthy agent three hours into a 288-slot run read as 255
+      missed slots. The fix must not quietly replace the on-chain number, so
+      both are shown.
+
   - id: canonical-run
     claim: >
       Agent 5's canonical run: strategy sealed to 0G Storage, agent registered

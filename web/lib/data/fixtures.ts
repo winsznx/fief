@@ -142,6 +142,7 @@ function summarizeEpoch(spec: GenSpec, list: DecisionEntry[]): EpochSummary {
   const committed = list.length;
   const missed = Math.max(0, slotCount - committed);
 
+  // The fixture epochs are finished runs, so everything scheduled has come due.
   return {
     epochId: spec.epoch,
     market: 'BTC-USDT',
@@ -151,11 +152,14 @@ function summarizeEpoch(spec: GenSpec, list: DecisionEntry[]): EpochSummary {
     disclosureDelay: 60,
     startTime: spec.startedAt,
     slotCount,
+    due: slotCount,
+    pending: 0,
     committed,
     revealed,
     missed,
     invalid: committed - revealed,
     completenessBps: slotCount === 0 ? 0 : Math.round((revealed / slotCount) * 10_000),
+    lifetimeBps: slotCount === 0 ? 0 : Math.round((revealed / slotCount) * 10_000),
     finalized: false,
   };
 }

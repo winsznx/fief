@@ -66,7 +66,7 @@ const ADDR = {
 const DEPLOY_BLOCK = BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK ?? '42582000');
 
 /** How many revealed directions to decode per ledger load. */
-const DECODE_LIMIT = Number(process.env.NEXT_PUBLIC_DECODE_LIMIT ?? '40');
+const DECODE_LIMIT = Number(process.env.NEXT_PUBLIC_DECODE_LIMIT ?? '12');
 
 /**
  * 0G mainnet, with the two things that make this viable inside a Worker.
@@ -258,6 +258,20 @@ async function readEpochSummary(agentId: bigint, epochId: bigint): Promise<Epoch
     const committed = Number(meta.committedCount);
     const revealed = Number(meta.revealedCount);
 
+    // How many slots have actually come due. Deriving `missed` as
+    // slotCount - committed treats the entire unplayed future as failure: a
+    // 288-slot epoch three hours in reported 255 misses and 10.76%
+    // completeness, which reads as a broken agent rather than a running one.
+    const now = Math.floor(Date.now() / 1000);
+    const start = Number(spec.startTime);
+    const cadence = Number(spec.cadenceSeconds);
+    const deadline = Number(spec.maxCommitDelay);
+    const elapsed = now - (start + deadline);
+    const due = Math.max(0, Math.min(slotCount, Math.floor(elapsed / cadence) + 1));
+
+    const missed = Math.max(0, due - committed);
+    const pending = Math.max(0, slotCount - due);
+
     return {
       epochId: Number(epochId),
       market: 'BTC-USDT',
@@ -267,13 +281,18 @@ async function readEpochSummary(agentId: bigint, epochId: bigint): Promise<Epoch
       disclosureDelay: Number(spec.disclosureDelay),
       startTime: iso(spec.startTime as bigint),
       slotCount,
+      due,
+      pending,
       committed,
       revealed,
-      // Derived exactly as the contract derives them at finalize, so the UI and
-      // `finalizeEpoch` can never disagree about what happened.
-      missed: Math.max(0, slotCount - committed),
+      missed,
       invalid: Math.max(0, committed - revealed),
-      completenessBps: Number(bps),
+      // Against what has come due, which is the number that means something
+      // while the epoch runs.
+      completenessBps: due === 0 ? 0 : Math.round((revealed / due) * 10_000),
+      // What the contract publishes: revealed over the whole schedule. Correct
+      // at finalize, misleading before it, so both are surfaced.
+      lifetimeBps: Number(bps),
       finalized: Boolean(meta.finalized),
     };
   } catch {
@@ -341,19 +360,22 @@ async function loadEntries(agentId: bigint, epochId: bigint): Promise<DecisionEn
 
   const revealBySlot = new Map(reveals.map((l) => [Number(l.args.slot), l]));
 
-  const out: DecisionEntry[] = [];
-  for (const c of commits) {
-    const slot = Number(c.args.slot);
-    const reveal = revealBySlot.get(slot);
+  // Built in parallel. The original awaited four contract reads per slot
+  // inside a for-loop, so a 33-slot epoch made ~130 sequential round trips and
+  // took 22 seconds to render. Batching plus Multicall3 collapses this into a
+  // handful of requests.
+  const out: DecisionEntry[] = await Promise.all(
+    commits.map(async (c) => {
+      const slot = Number(c.args.slot);
+      const reveal = revealBySlot.get(slot);
 
-    const [commit, times] = await Promise.all([
-      client.readContract({
-        address: ADDR.recordBook,
-        abi: recordBookAbi,
-        functionName: 'commitOf',
-        args: [agentId, epochId, slot],
-      }) as Promise<Record<string, unknown>>,
-      Promise.all([
+      const [commit, commitDeadline, revealOpen, entry] = await Promise.all([
+        client.readContract({
+          address: ADDR.recordBook,
+          abi: recordBookAbi,
+          functionName: 'commitOf',
+          args: [agentId, epochId, slot],
+        }) as Promise<Record<string, unknown>>,
         client.readContract({
           address: ADDR.epochBook,
           abi: epochBookAbi,
@@ -366,43 +388,44 @@ async function loadEntries(agentId: bigint, epochId: bigint): Promise<DecisionEn
           functionName: 'slotRevealOpen',
           args: [agentId, epochId, slot],
         }) as Promise<bigint>,
-      ]),
-    ]);
+        reveal
+          ? (client.readContract({
+              address: ADDR.recordBook,
+              abi: recordBookAbi,
+              functionName: 'entryOf',
+              args: [agentId, epochId, slot],
+            }) as Promise<Record<string, unknown>>)
+          : Promise.resolve(null),
+      ]);
 
-    const entry = reveal
-      ? ((await client.readContract({
-          address: ADDR.recordBook,
-          abi: recordBookAbi,
-          functionName: 'entryOf',
-          args: [agentId, epochId, slot],
-        })) as Record<string, unknown>)
-      : null;
+      const txHash = (reveal?.transactionHash ?? c.transactionHash) as `0x${string}`;
 
-    const txHash = (reveal?.transactionHash ?? c.transactionHash) as `0x${string}`;
-
-    out.push({
-      slot,
-      epoch: Number(epochId),
-      state: reveal ? 'revealed' : 'committed',
-      status: 'accepted',
-      // Populated below for revealed slots. A slot still inside its disclosure
-      // window genuinely has no public direction, and the UI says so.
-      committedAt: iso(commit.committedAt as bigint),
-      commitDeadline: iso(times[0]),
-      revealOpen: iso(times[1]),
-      commitTxHash: c.transactionHash as `0x${string}`,
-      receiptCommit: commit.receiptCommit as `0x${string}`,
-      reqSha: commit.reqSha as `0x${string}`,
-      respSha: commit.respSha as `0x${string}`,
-      teeSigner: (entry?.teeSigner as Address) ?? ZERO_ADDRESS,
-      provider: commit.provider as Address,
-      inputHash: (entry?.inputHash as `0x${string}`) ?? (`0x${'0'.repeat(64)}` as `0x${string}`),
-      renter: (entry?.renter as Address) ?? ZERO_ADDRESS,
-      txHash,
-      chainScanUrl: CHAIN_SCAN_TX(txHash),
-      blockTime: entry === null ? iso(commit.committedAt as bigint) : iso(entry.revealedAt as bigint),
-    });
-  }
+      return {
+        slot,
+        epoch: Number(epochId),
+        state: reveal ? 'revealed' : 'committed',
+        status: 'accepted',
+        // Populated below for revealed slots. A slot still inside its
+        // disclosure window genuinely has no public direction.
+        committedAt: iso(commit.committedAt as bigint),
+        commitDeadline: iso(commitDeadline),
+        revealOpen: iso(revealOpen),
+        commitTxHash: c.transactionHash as `0x${string}`,
+        receiptCommit: commit.receiptCommit as `0x${string}`,
+        reqSha: commit.reqSha as `0x${string}`,
+        respSha: commit.respSha as `0x${string}`,
+        teeSigner: (entry?.teeSigner as Address) ?? ZERO_ADDRESS,
+        provider: commit.provider as Address,
+        inputHash:
+          (entry?.inputHash as `0x${string}`) ?? (`0x${'0'.repeat(64)}` as `0x${string}`),
+        renter: (entry?.renter as Address) ?? ZERO_ADDRESS,
+        txHash,
+        chainScanUrl: CHAIN_SCAN_TX(txHash),
+        blockTime:
+          entry === null ? iso(commit.committedAt as bigint) : iso(entry.revealedAt as bigint),
+      } satisfies DecisionEntry;
+    }),
+  );
 
   out.sort((a, b) => a.slot - b.slot);
 
@@ -410,7 +433,11 @@ async function loadEntries(agentId: bigint, epochId: bigint): Promise<DecisionEn
   // transaction fetch, and a 288-slot campaign ledger would otherwise issue
   // hundreds of requests to render one screen. The detail view decodes on
   // demand for anything past the cap.
-  const revealedEntries = out.filter((e) => e.state === 'revealed').slice(0, DECODE_LIMIT);
+  // Newest first: a long-running epoch's recent slots are what a visitor
+  // looks at, and decoding all of them would reintroduce the stall.
+  const revealedEntries = out
+    .filter((e) => e.state === 'revealed')
+    .slice(-DECODE_LIMIT);
   await Promise.all(
     revealedEntries.map(async (e) => {
       const d = await decodeDecision(e.txHash);
