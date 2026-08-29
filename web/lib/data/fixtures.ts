@@ -192,6 +192,7 @@ function generateEntries(spec: GenSpec): DecisionEntry[] {
     const tx = txHash(rand);
     const commitTx = txHash(rand);
     entries.push({
+      agentId: spec.tokenId,
       slot: i,
       epoch: spec.epoch,
       state: 'revealed',

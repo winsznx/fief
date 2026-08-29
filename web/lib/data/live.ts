@@ -423,6 +423,7 @@ async function loadEntries(agentId: bigint, epochId: bigint): Promise<DecisionEn
       const txHash = (reveal?.transactionHash ?? c.transactionHash) as `0x${string}`;
 
       return {
+        agentId: agentId.toString(),
         slot,
         epoch: Number(epochId),
         state: reveal ? 'revealed' : 'committed',

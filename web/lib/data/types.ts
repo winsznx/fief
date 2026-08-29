@@ -68,6 +68,14 @@ export interface EpochSummary {
 export interface Decision { dir: Direction; conf: number; size: number } // conf,size in 0..1
 
 export interface DecisionEntry {
+  /**
+   * The agent this entry belongs to. The type not carrying this is what let
+   * /agents/[id]/entries/[tx] 404 on its own links: the membership check had to
+   * infer ownership by looking the slot up again, and did it by array index.
+   * Ownership is a property of the entry, so it lives on the entry.
+   */
+  agentId: string;
+
   // v2 — a slot is the identity of a decision. It replaces v1's entryIndex and
   // nonce together: the schedule fixes it in advance, so it exists before the
   // decision does and cannot be renumbered afterwards.
