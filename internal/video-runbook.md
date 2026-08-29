@@ -4,7 +4,8 @@ Every beat below was run against live mainnet on 2026-08-25 and timed. Nothing
 here is aspirational; if a step is slow or can't be filmed live, it says so and
 gives the alternative.
 
-**Target: 2:55.** Under the 3:00 cap with margin for a slow page.
+**Target: 2:50.** The run of show below totals 2:50, leaving ten seconds of
+margin under the three-minute cap for a slow tab switch or a breath.
 
 ---
 
@@ -30,8 +31,23 @@ https://chainscan.0g.ai/tx/0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b
 
 ```bash
 cd ~/fief/packages/verify     # tab 1
-cd ~/fief/runtime             # tab 2, with PRIVATE_KEY exported
+cd ~/fief/runtime             # tab 2
 ```
+
+No key setup, no exports, nothing to paste on camera. `runtime/.env` already
+holds the funded mainnet operator (`0xbF7EF900…Bf31`, the same wallet the
+campaign runs as) and every runtime script loads it automatically. Confirm it in
+one line before you start:
+
+```bash
+cd ~/fief/runtime && grep -c PRIVATE_KEY .env    # prints 1
+```
+
+Tab 1 needs no key at all. The verifier reads public RPC only, which is the
+whole claim it is there to make.
+
+`demo-reject` simulates the rejected call before sending, so it never becomes a
+transaction and spends no gas. Run it as many takes as you like.
 
 **3. Confirm the campaign is still running.** Shot 7 depends on it:
 
@@ -45,7 +61,7 @@ without backfilling anything:
 
 ```bash
 cd ~/fief/runtime
-NETWORK=mainnet AGENT=7 EPOCH=1 CAMPAIGN_LOG=campaign2.log \
+AGENT=7 EPOCH=1 CAMPAIGN_LOG=campaign2.log \
   CAMPAIGN_SPOOL=campaign2.spool.jsonl nohup ./supervise-campaign.sh > campaign2.out 2>&1 &
 ```
 
@@ -58,20 +74,20 @@ readable when the video is scaled down.
 
 | # | t | duration | shot | say |
 |---|---|---|---|---|
-| 1 | 0:00 | 15s | A bot listing with a glossy backtest chart. Any screenshot. | "Any bot can show you a backtest. Worse: even a *real* track record can be edited. You just don't publish the calls that went wrong." |
-| 2 | 0:15 | 20s | ChainScan, the `openEpoch` transaction, decoded input expanded | "So Fief makes the agent commit to a schedule first. Market, cadence, horizon, deadlines, slot count — timestamped on 0G mainnet before any of it happened. The operator cannot change it now." |
-| 3 | 0:35 | 20s | Terminal tab 2: `NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject` — runs in ~8s | "Here's what that buys. Take a decision already on the record, change one byte, try to write it again." |
-| 4 | 0:55 | 12s | Same output: `REJECTED` then `completeness unchanged` | "Refused. And the agent's score is untouched, so an attacker can't grief someone's record by spamming bad submissions either." |
-| 5 | 1:07 | 18s | ChainScan, the red transaction, Logs tab showing `DecisionRejected` | "This is the tamper case on-chain. Note the transaction **succeeded** — it carries the rejection as an event, because a failed transaction would look like the system broke, when the system worked." |
-| 6 | 1:25 | 22s | Live app `/proof`, scroll to the slot timeline | "Sealed 98 seconds inside its deadline. Then private for 338 seconds. That window is what a renter is paying for: they hold the direction, the chain holds only a hash." |
-| 7 | 1:47 | 18s | `/agents` marketplace, then click agent 7, land on the running completeness bar | "Every agent, read straight off mainnet. No indexer, no database. This one is committing right now — the denominator was fixed before any of it happened." |
-| 8 | 2:05 | 25s | **Scroll to "Every epoch, including the bad ones."** Hold on epoch 0: 10.76%, 255 missed. | "And here's the part I'd rather not show you. That's our own campaign. It ran for three hours and then the machine went to sleep. 255 calls never happened, and I can't reopen that epoch, can't backfill it, can't delete it. It's ours now, permanently. That's the product working." |
-| 9 | 2:30 | 18s | Terminal tab 1: `pnpm start -- --tx 0xc8543dfc…` — runs in ~6s, 6/6 | "And you don't have to believe this website. This recomputes everything from public RPC data — recovers the signer from the receipt and checks it against 0G's own contract." |
-| 10 | 2:48 | 7s | Title card | "Fief. Private alpha now. Public proof later." |
+| 1 | 0:00 | 12s | A bot listing with a glossy backtest chart, labelled **Illustrative**. | "A trading bot can show a beautiful backtest. But it can quietly remove the calls that went wrong." |
+| 2 | 0:12 | 18s | ChainScan, the `openEpoch` transaction, decoded input expanded. | "Fief fixes the bot's schedule first: market, cadence, deadlines, and every future slot, timestamped on 0G mainnet before the calls exist. The operator cannot change that schedule later." |
+| 3 | 0:30 | 18s | Terminal tab 2: `NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject`. | "Now I will try to overwrite an existing public record with altered bytes." |
+| 4 | 0:48 | 10s | Hold on `REJECTED` and `unchanged — a rejected reveal cannot damage the record`. | "The chain refuses the rewrite. The entry and its completeness score do not move." |
+| 5 | 0:58 | 16s | ChainScan, canonical red transaction, Logs tab showing `DecisionRejected(BadReveal)`. | "This is the actual byte-tamper case: a committed response was changed by one byte before reveal, and 0G mainnet rejected it. The transaction succeeds only to preserve the rejection as public evidence." |
+| 6 | 1:14 | 20s | Live app `/proof`, scroll to the slot timeline. | "Before reveal, the renter receives the direction; the public chain receives only a commitment. This call was sealed 98 seconds inside its deadline and private for 338 seconds. That is the window a renter pays for." |
+| 7 | 1:34 | 16s | `/agents`, then agent 7's running epoch. | "Every record here is read directly from 0G mainnet — no indexer and no database. This agent is still running, but its denominator was fixed before it began." |
+| 8 | 1:50 | 30s | **Scroll to "Every epoch, including the bad ones."** Hold on epoch 0: 10.76%, 31 of 288, 255 missed. | "Here is our own failed campaign. The machine slept after three hours. Two hundred and fifty-five scheduled calls never happened. I cannot reopen this epoch, backfill those calls, or delete this record. It stays public. That is Fief working." |
+| 9 | 2:20 | 20s | Terminal tab 1: `pnpm start -- --tx 0xc8543dfc…`; hold on the four relevant `ok` lines and `6 checks passed`. | "You do not have to trust this website. This independently verifies this reveal from public RPC data, recovers the TEE signer from the receipt, and checks it against 0G's own serving contract." |
+| 10 | 2:40 | 10s | Title card. | "Fief: private alpha now, public proof later." |
 
 Shot 8 is the one to get right. It is the only moment in the video where the
-system costs *us* something, and it is far more convincing than any number of
-green checkmarks. Do not apologise for it on camera and do not explain it away.
+system costs *us* something, and it is more convincing than any number of green
+checkmarks. Do not apologise for it or explain it away.
 
 ---
 
@@ -87,7 +103,8 @@ NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject
 Point it at epoch 0, not the running epoch 1. Epoch 0 has 31 revealed slots to
 pick from and is finished, so the output is identical every take.
 
-**Shot 9** (~6s):
+**Shot 9** (6.9s warm, ~12s on the first run of a cold process; the 20s shot
+window covers either):
 
 ```bash
 cd ~/fief/packages/verify

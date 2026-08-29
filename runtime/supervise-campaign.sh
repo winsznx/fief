@@ -13,15 +13,27 @@
 # A restart therefore costs exactly the slots we were down for, never more, and
 # never backfills.
 #
-#   cd runtime && NETWORK=mainnet AGENT=7 EPOCH=1 ./supervise-campaign.sh
+#   cd runtime && AGENT=7 EPOCH=1 ./supervise-campaign.sh
 #
-# PRIVATE_KEY must be exported. Ctrl-C stops it for good.
+# The key comes from runtime/.env, same as every other runtime script. Ctrl-C
+# stops it for good.
 
 set -uo pipefail
 
+cd "$(dirname "$0")"
+
+# The campaign CLI loads .env itself. This is only so the check below can fail
+# with a useful message instead of the runtime dying on its first slot.
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 : "${AGENT:?set AGENT}"
 : "${EPOCH:?set EPOCH}"
-: "${PRIVATE_KEY:?export PRIVATE_KEY}"
+: "${PRIVATE_KEY:?no PRIVATE_KEY: create runtime/.env or export it}"
 
 RESTART_DELAY="${RESTART_DELAY:-20}"
 
