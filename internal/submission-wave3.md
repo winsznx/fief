@@ -8,13 +8,16 @@ shipped, so no line needs softening before it goes out.
 **Name:** Fief
 
 **One-liner (max 30 words):**
-> A market for proof-carrying alpha. Trading agents commit every live call
-> on-chain before the market moves, and the full 0G TEE-backed record becomes
-> publicly verifiable after the edge expires.
+> Fief makes a trading agent's missing and losing calls publicly visible,
+> without giving away the signal before it expires.
+
+**Lead with the outcome, not the architecture.** Nobody is moved by four 0G
+components or 242 tests. They are moved by: a bot cannot quietly delete the
+calls that went wrong.
 
 **Short summary:**
-> Trading bots can fake a backtest, and even a real track record can be edited
-> by quietly deleting the losses. Fief makes that impossible to hide. An agent
+> Every trading bot's track record is editable. Not by forging signatures, but
+> by simply not publishing the calls that went wrong. Fief closes that. An agent
 > opens a forward epoch that fixes its schedule on-chain before any outcome is
 > knowable, then commits every scheduled decision before its deadline as a
 > sealed 0G Compute TEE receipt. Renters get the cleartext signal immediately
@@ -136,6 +139,28 @@ cd packages/verify && pnpm start -- --tx 0xc8543dfc…      # 6/6
 Attach: the completeness bar screenshot, or the 20s clip of the red tx being
 rejected followed by the honest reveal landing.
 
+## 6b. Answers to the obvious questions
+
+**"So it's a signature checker?"** No. Signature checking is table stakes and
+0G's SDK already does a weaker version. The mechanism is the *schedule*: the
+denominator is fixed on-chain before any outcome exists, so a call that never
+appears is a permanent, public `Missed`.
+
+**"Why can't the operator just start a new epoch when one goes badly?"** They
+can, and it is visible. Every epoch ever opened is listed, including abandoned
+ones, and lifetime completeness spans all of them. Made visible, not made
+impossible, and the README says so.
+
+**"Is the signal actually good?"** Unknown, and Fief never claims otherwise.
+It proves provenance, timing and completeness. Profitability is not a
+cryptographic property and pretending otherwise would poison the rest.
+
+**"Does the strategy really go into the request?"** This is the honest gap. The
+commitment is declared on the response side, so a dishonest owner could run a
+request that omits the strategy while instructing the model to echo its hash.
+Closed today by an authorized request audit, and by a ZK prefix opening later.
+It is stated in SECURITY.md rather than buried.
+
 ## 7. Judging notes
 
 **Progress (40%).** Wave 3 went from a specification with zero contracts to a
@@ -156,7 +181,8 @@ invariants. A differential fuzz on the hand-written assembly. Slither before
 deployment, with the one real finding fixed and the false positives argued
 rather than dismissed.
 
-**Traction and communication (10%).** Honest by construction: the marketplace
+**Traction and communication (10%).** The live app is at
+https://fief.timjosh507.workers.dev. Honest by construction: the marketplace
 shows agents at 0% and 50% alongside the ones at 100%, because those runs really
 did miss slots. A forward campaign is accruing a 288-slot record at a five-minute
 cadence. Still the weakest axis, and the honest gap is external users: one
@@ -173,3 +199,9 @@ than any further engineering.
   stranger.
 - **The UI has not had a design pass on the v2 surfaces.** The completeness bar
   and slot timeline are correct and accessible; they are not yet beautiful.
+- **No rent transaction has been signed from a browser wallet.** The path is
+  wired, simulated-first and deployed, and the same contract call is proven on
+  mainnet through the CLI, but the browser signing step itself is unexercised.
+- **Console writes beyond rent still throw** rather than returning an
+  optimistic result. Minting, resealing and settling run through the runtime
+  CLIs.
