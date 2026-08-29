@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Fief runtime: slot scheduler, decision loop, commit/reveal against 0G (PRD v2 §12).",
+  "description": "Fief runtime: slot scheduler, decision loop, commit/reveal against 0G (PRD v2 \u00a712).",
   "license": "MIT",
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -15,7 +15,8 @@
     "reputation": "tsx src/cli/reputation.ts",
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test",
-    "campaign": "tsx src/cli/campaign.ts"
+    "campaign": "tsx src/cli/campaign.ts",
+    "demo-reject": "tsx src/cli/demo-reject.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
