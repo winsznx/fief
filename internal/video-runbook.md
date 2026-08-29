@@ -54,15 +54,18 @@ whole claim it is there to make.
 `demo-reject` simulates the rejected call before sending, so it never becomes a
 transaction and spends no gas. Run it as many takes as you like.
 
-**3. Confirm the campaign is still running.** Shot 7 depends on it:
+**3. Confirm the campaign is still running.** Shot 7 depends on it. Run these
+two, do not run anything else in this step:
 
 ```bash
 tail -3 ~/fief/runtime/campaign2.out     # should show a recent slot committing
 pgrep -f supervise-campaign.sh           # should print a pid
 ```
 
-If it is dead, restart it and let one slot land before recording. It resumes
-without backfilling anything:
+If `pgrep` printed a pid, you are done with this step. **Skip the block below.**
+
+ONLY IF `pgrep` printed nothing, restart it and let one slot land before
+recording. It resumes without backfilling anything:
 
 ```bash
 cd ~/fief/runtime
@@ -72,6 +75,22 @@ AGENT=7 EPOCH=1 CAMPAIGN_LOG=campaign2.log \
 
 **4. Screen recording at 1080p minimum.** ChainScan zoomed so hashes are
 readable when the video is scaled down.
+
+---
+
+## The only three commands you type on camera
+
+Everything else in this video is browser tabs and clicking. Do the two `cd`
+lines before you hit record so that on camera you type nothing but these three.
+
+| shot | tab | command |
+|---|---|---|
+| 2 | 2 | `NETWORK=mainnet AGENT=7 EPOCH=0 pnpm schedule` |
+| 3 | 2 | `NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject` |
+| 9 | 1 | `pnpm start -- --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19` |
+
+Lines in this document that begin with three backticks are markdown formatting
+around a command, never part of it. Copy what is between them.
 
 ---
 
