@@ -17,20 +17,23 @@ Fief is an AI × onchain marketplace on [0G](https://0g.ai). An agent opens a **
 | FiefAgent | [`0x4db74faF047160893Aa0dabC9A1B8F3297570a68`](https://chainscan.0g.ai/address/0x4db74faF047160893Aa0dabC9A1B8F3297570a68) |
 | RentalDesk | [`0x75C6ce6c6Cc40c922B30F985e75580C32Cd78e57`](https://chainscan.0g.ai/address/0x75C6ce6c6Cc40c922B30F985e75580C32Cd78e57) |
 
-The canonical run (agent 5, epoch 0), all on mainnet:
+The canonical run (agent 8, epoch 0), all on mainnet:
 
 | step | tx |
 |---|---|
-| sealed strategy uploaded to **0G Storage** | [`0x8140d9b2…`](https://chainscan.0g.ai/tx/0x8140d9b27b01eb3af8b5a5ac31ef0fbb0d9efdf3aca964b01eb220436ca53677) |
-| agent registered with `H` + `storageRoot` | [`0x0b851c43…`](https://chainscan.0g.ai/tx/0x0b851c43676ff440c611ba7f8700e1f44bb0f059a06e28eeda32e20cd266c53f) |
-| forward epoch opened, schedule fixed | [`0x7fc60c5c…`](https://chainscan.0g.ai/tx/0x7fc60c5c6db8d82605f4168b4c14f412d416272dc2d6b14c681518d9291d0527) |
-| **commit** — sealed, direction private | [`0xb1cf572f…`](https://chainscan.0g.ai/tx/0xb1cf572f94cb2404a7781f207b21883a5a444b5387d563b2e34ca5ad83f20cdb) |
+| sealed strategy uploaded to **0G Storage** | [`0x3145495a…`](https://chainscan.0g.ai/tx/0x3145495ab3f9158913b46c06b2577d7794d0aeb24ec437266c91e99e3f09d16e) |
+| agent registered with `H` + `storageRoot` | [`0x8b477532…`](https://chainscan.0g.ai/tx/0x8b4775328c24f4b89a4afaaa39b440392b02399834eb71f8a631760bfea70bc0) |
+| forward epoch opened, schedule fixed | [`0x64debb3d…`](https://chainscan.0g.ai/tx/0x64debb3d29793601b515baea9dab5e04a461dff8e019b0783e6894f3ca7d1555) |
+| **commit** — sealed, direction private | [`0x16b4492e…`](https://chainscan.0g.ai/tx/0x16b4492ecfc41ae559a16fc109312bd3073f6666a8edda362b7d6ab22a0287c5) |
 | **reveal (green)** — verified byte-exact | [`0xc8543dfc…`](https://chainscan.0g.ai/tx/0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19) |
 | **tampered reveal (red)** — rejected | [`0x6d68ade3…`](https://chainscan.0g.ai/tx/0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b) |
-| honest reveal of that same slot | [`0x210d4317…`](https://chainscan.0g.ai/tx/0x210d43176b9a950d21b16c778af1de419a62e4f4da1bc21239433b9f63a4e21c) |
+
+The green and red are the **same slot**, one byte apart: the tampered reveal and
+the honest reveal of slot 1. The commitment stayed sealed for **338 seconds**
+after it landed, which is the window a renter is paying for.
 
 Two details worth clicking through to. The red transaction **succeeded**; it carries a
-`DecisionRejected(agent 5, slot 1, "BadReveal")` event, because a reverted transaction reads
+`DecisionRejected(agent 8, slot 1, "BadReveal")` event, because a reverted transaction reads
 like the system broke when what actually happened is the system worked. And the honest reveal
 of that same slot landed afterwards, taking the epoch to **100% completeness**: the tamper was
 caught and the record was not damaged, so a bad reveal cannot be used to grief an agent.
@@ -51,7 +54,7 @@ The same sealed strategy said this, at this time, before the answer was known.
 | **0G Chain** (mainnet 16661) | timestamps the forward schedule, the sealed commits and the verified reveals |
 | **0G Compute** (TeeML) | produces the attributable inference; its enclave key is recovered on-chain |
 | **0G Storage** | holds the AES-256-GCM sealed strategy; its merkle root is the agent's `storageRoot` |
-| **Agentic ID / ERC-8004** | identity and renter reputation, **testnet only** — no mainnet deployment exists upstream |
+| **Agentic ID / ERC-8004** | identity and renter reputation, **testnet 16602 only** — the mainnet address is an ERC-1967 proxy whose reads all revert |
 
 ## Network
 
@@ -84,7 +87,7 @@ byte-exact receipt check, by decoding the reveal transaction's own calldata.
 
 ```bash
 cd packages/verify && pnpm install
-pnpm start -- --agent 5 --epoch 0      # schedule, deadlines, completeness recount
+pnpm start -- --agent 8 --epoch 0      # schedule, deadlines, completeness recount
 pnpm start -- --tx 0xc8543dfc…         # one reveal, byte for byte
 ```
 
@@ -113,7 +116,7 @@ Full steps in [SETUP.md](./SETUP.md).
 
 ## Honest-status discipline
 
-Fief never claims "trustless", "unextractable", or "impossible to fake". We state only what is proven: *strategy sealed on 0G Storage, decisions attested by 0G TeeML, committed on-chain before the market outcome and revealed and verified after, request commitment sealed and auditable under authorized access.* Agentic ID and ERC-8004 reputation data is always labelled **testnet**, because no mainnet deployment of those registries exists upstream. All UI copy must follow this rule (see the handoff and PRD §8).
+Fief never claims "trustless", "unextractable", or "impossible to fake". We state only what is proven: *strategy sealed on 0G Storage, decisions attested by 0G TeeML, committed on-chain before the market outcome and revealed and verified after, request commitment sealed and auditable under authorized access.* Agentic ID and ERC-8004 reputation data is always labelled **testnet**. Bytecode does exist at the canonical ERC-8004 address on mainnet, but it is an ERC-1967 proxy with no working implementation and every read reverts, so the registry is not usable there; on testnet the same address answers `name()` with `AgentIdentity`. Verified 2026-08-25. All UI copy must follow this rule (see the handoff and PRD §8).
 
 ## License
 

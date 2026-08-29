@@ -114,6 +114,9 @@ claims:
       - "green (repair) 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19"
       - "red (tampered) 0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b"
       - "commit        0x16b4492ecfc41ae559a16fc109312bd3073f6666a8edda362b7d6ab22a0287c5"
+      - "register      0x8b4775328c24f4b89a4afaaa39b440392b02399834eb71f8a631760bfea70bc0"
+      - "openEpoch     0x64debb3d29793601b515baea9dab5e04a461dff8e019b0783e6894f3ca7d1555"
+      - "storage       0x3145495ab3f9158913b46c06b2577d7794d0aeb24ec437266c91e99e3f09d16e"
       - "fief-verify --agent 8 --epoch 0 (7/7)"
       - "private window 338s; agent 5's was -1s, which is why the pair moved"
 
@@ -165,6 +168,36 @@ claims:
     evidence:
       - "0g-compute-ts-sdk processResponse does not recompute the hashes (source read 2026-08-19)"
       - "RecordBook rebuilds the 129-byte text from real request and response bytes"
+
+  - id: browser-rent-wired
+    claim: >
+      The deployed UI can complete the rent flow from a visitor's own wallet:
+      injected EIP-1193 connect, chain add and switch, simulate, sign, and read
+      the grant back from the contract.
+    rung: 6
+    status: partial
+    evidence:
+      - "web/lib/wallet/injected.ts, web/lib/data/live.ts rent()"
+      - "deployed and rendering; the page gates correctly on wallet connection"
+    not_yet: >
+      No rent transaction has been signed from a browser wallet. Headless
+      Chrome has no extension, so the signing step is unexercised. The same
+      contract call IS proven on mainnet through the CLI, see rental-settled.
+
+  - id: agentic-id-is-testnet-only
+    claim: >
+      Agentic ID and the ERC-8004 reputation registry are usable only on
+      testnet 16602. Bytecode exists at the canonical ERC-8004 address on
+      mainnet, but it is an ERC-1967 proxy whose reads all revert.
+    rung: 9
+    status: verified
+    revalidated: 2026-08-25
+    evidence:
+      - "eth_getCode 0x34493302… mainnet 0 bytes, testnet 295 bytes"
+      - "eth_getCode 0xede70197… mainnet 0 bytes, testnet 295 bytes"
+      - "0x8004A818… mainnet 130 bytes (ERC-1967 proxy), name() reverts"
+      - "0x8004A818… testnet name() -> AgentIdentity"
+      - "attestor agenticid.0g.ai/config serves chain_id 16602"
 
   - id: serve-proof-valid
     claim: >

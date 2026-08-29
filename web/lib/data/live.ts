@@ -22,6 +22,7 @@ import type { Address, PublicClient } from 'viem';
 
 import { CHAIN_SCAN_TX } from '@/lib/chain/zerog';
 import { ZERO_ADDRESS } from './commit';
+import { getWalletClient, zeroGChain } from '@/lib/wallet/injected';
 import { epochBookAbi, fiefAgentAbi, recordBookAbi, rentalDeskAbi } from './live-abi';
 import type {
   Agent,
@@ -156,10 +157,49 @@ function memo<T>(fn: () => Promise<T>): () => Promise<T> {
 
 const notSupported = (what: string): never => {
   throw new Error(
-    `${what} is not available in live mode: the console has no wallet writes wired yet. ` +
-      `Use the runtime CLIs in runtime/ instead.`,
+    `${what} is not wired for browser writes yet. The contracts and the runtime ` +
+      `CLIs in runtime/ perform it; only the console UI is missing.`,
   );
 };
+
+/**
+ * Send a real transaction from the connected wallet.
+ *
+ * Simulated first, so a revert surfaces as a decoded custom error before the
+ * user is asked to sign. Being prompted to sign a transaction that cannot
+ * succeed is the worst version of this interaction.
+ */
+async function write(
+  address: Address,
+  abi: readonly unknown[],
+  functionName: string,
+  args: readonly unknown[],
+  value?: bigint,
+): Promise<`0x${string}`> {
+  const wallet = getWalletClient();
+  if (wallet === null) throw new Error('No wallet connected.');
+
+  const [account] = await wallet.getAddresses();
+  if (account === undefined) throw new Error('No wallet account authorised.');
+
+  const chainId = await wallet.getChainId();
+  if (chainId !== zeroGChain.id) {
+    throw new Error(`Wrong network: connected to ${chainId}, expected ${zeroGChain.id}.`);
+  }
+
+  const { request } = await client.simulateContract({
+    address,
+    abi: abi as never,
+    functionName: functionName as never,
+    args: args as never,
+    account,
+    ...(value === undefined ? {} : { value }),
+  });
+
+  const hash = await wallet.writeContract(request as never);
+  await client.waitForTransactionReceipt({ hash, timeout: 120_000 });
+  return hash;
+}
 
 /* ------------------------------------------------------------------ reads */
 
@@ -609,7 +649,55 @@ export const liveDataSource: DataSource = {
     return () => clearTimeout(t);
   },
 
-  rent: () => notSupported('rent'),
+  /**
+   * Rent an agent for its current epoch, on chain, from the visitor's wallet.
+   *
+   * This is the product's central flow, so it runs for real rather than
+   * returning an optimistic result. The grant is read back from the contract
+   * afterwards instead of being predicted client-side: `maxDecisions` is
+   * integer division the contract performs, and guessing it here would let the
+   * UI disagree with the chain about what someone just paid for.
+   */
+  async rent(tokenId, escrowWei) {
+    const agent = await buildAgent(BigInt(tokenId));
+    if (agent === null) throw new Error(`Agent ${tokenId} not found.`);
+
+    const listing = await liveDataSource.getListing(tokenId);
+    if (listing === null || !listing.active) throw new Error(`Agent ${tokenId} is not listed.`);
+    if (BigInt(escrowWei) < BigInt(listing.minEscrowWei)) {
+      throw new Error(`Escrow below the listing minimum of ${listing.minEscrowWei} wei.`);
+    }
+
+    const wallet = getWalletClient();
+    const [renter] = (await wallet?.getAddresses()) ?? [];
+    if (renter === undefined) throw new Error('No wallet connected.');
+
+    await write(
+      ADDR.rentalDesk,
+      rentalDeskAbi,
+      'rent',
+      [BigInt(tokenId), BigInt(agent.epoch)],
+      BigInt(escrowWei),
+    );
+
+    const g = (await client.readContract({
+      address: ADDR.rentalDesk,
+      abi: rentalDeskAbi,
+      functionName: 'grantOf',
+      args: [BigInt(tokenId), renter],
+    })) as Record<string, unknown>;
+
+    const expiry = g.expiry as bigint;
+    return {
+      tokenId,
+      renter,
+      expiry: iso(expiry),
+      maxDecisions: Number(g.maxDecisions),
+      remainingEscrowWei: (g.remainingWei as bigint).toString(),
+      status: 'active',
+      decisionsUsed: Number(g.settledCount),
+    } as Grant;
+  },
   mintAgent: () => notSupported('mintAgent'),
   setOperator: () => notSupported('setOperator'),
   reseal: () => notSupported('reseal'),

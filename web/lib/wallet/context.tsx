@@ -12,6 +12,7 @@ import {
 import { zeroGMainnet, zeroGTestnet } from '@/lib/chain/zerog';
 import { createMockWalletSource } from './mock';
 import type { WalletPersona, WalletSource, WalletState } from './types';
+import { InjectedWalletSource, hasInjectedWallet } from './injected';
 
 interface WalletContextValue extends WalletState {
   connect: () => Promise<void>;
@@ -36,7 +37,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Lazily constructed once via useState's initializer rather than a ref:
   // reading `ref.current` during render is disallowed by the React Compiler
   // rules that ship with Next 16.
-  const [source] = useState<WalletSource>(() => createMockWalletSource());
+  // Live mode drives a real injected wallet so the deployed product can
+  // complete its own rent flow. Mock stays the default everywhere else,
+  // because reproducing every wallet state on demand is what makes the
+  // disconnected and wrong-network screenshots possible.
+  //
+  // Falls back to the mock in live mode when no wallet is installed, so a
+  // judge browsing without MetaMask still sees a working read-only site rather
+  // than a crash.
+  const [source] = useState<WalletSource>(() =>
+    process.env.NEXT_PUBLIC_DATA_MODE === 'live' && hasInjectedWallet()
+      ? new InjectedWalletSource()
+      : createMockWalletSource(),
+  );
 
   const [state, setState] = useState<WalletState>(() => source.getState());
   const [persona, setPersonaState] = useState<WalletPersona | null>(

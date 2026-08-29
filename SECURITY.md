@@ -32,8 +32,20 @@ trusting this repo, its frontend, or its operator.
   the model to echo H. Closed today by an authorized request audit, and by a ZK
   prefix opening later. This is the single most important limit on the page.
 - **Anything about the ERC-7857 draft verifier.** Fief no longer forks it.
-- **Mainnet Agentic ID or ERC-8004.** Those registries are testnet-only
-  upstream, and every surface showing that data says testnet.
+- **Mainnet Agentic ID or ERC-8004.** Agentic ID and ERC-8004 are **testnet only**, and the wording matters because
+  bytecode does exist at the canonical ERC-8004 address on mainnet. Verified
+  2026-08-25:
+  
+  | address | mainnet 16661 | testnet 16602 |
+  |---|---|---|
+  | AgenticID proxy `0x34493302…` | no code | 295 B, live |
+  | ReputationRegistry `0xede70197…` | no code | 295 B, live |
+  | canonical ERC-8004 `0x8004A818…` | 130 B ERC-1967 proxy, **every read reverts** | `name()` returns `AgentIdentity` |
+  
+  So the mainnet address is a proxy shell with no working implementation behind
+  it. It is not usable, and the production attestor (`agenticid.0g.ai/config`)
+  serves chain 16602. Anyone can check this with `cast code` and
+  `cast call … "name()"`.
 
 ## Threat model
 
