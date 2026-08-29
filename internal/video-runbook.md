@@ -12,9 +12,10 @@ margin under the three-minute cap for a slow tab switch or a breath.
 
 ## Before you press record
 
-**1. Pre-warm every page.** Cold loads measured 2026-08-29 after the last
-deploy: `/agents` 0.6s, `/proof` 4.2s, `/agents/7` 6.2s, `/agents/8` 6.2s, `/`
-6.5s. Live reads are slow and there is no
+**1. Pre-warm every page.** Cold loads, re-measured 2026-08-29 21:0x UTC:
+`/agents` 1.5s, `/proof` 4.9s, `/agents/7` 8.3s, `/` ~6.5s. Agent 7 keeps
+getting slower as epoch 1 accrues slots, so pre-warm it last and expect ~10s by
+the time you record. Live reads are slow and there is no
 cache, deliberately, because a stale completeness number is the one thing this
 product must not show. Load each of these once, then leave the tabs open:
 
