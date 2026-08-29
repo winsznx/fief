@@ -249,6 +249,14 @@ epoch 0   10.76%   31 of 288 scheduled   255 missed
 Epoch 1's row climbs while you record, which is the point of it. Epoch 0's row
 is frozen forever and those are the numbers you narrate.
 
+Epoch 1 carries a few missed slots of its own, and they are honest ones: the 0G
+Compute provider returned `fetch failed` on four slots and rejected one as
+`Missing or invalid parameters`, so no TEE-signed decision existed to commit
+before those deadlines. If a viewer catches it, that is a *good* question to
+get. The inference layer failed, the agent could not produce a signed call in
+time, and the record says so instead of quietly dropping those slots from the
+denominator. Nothing about that is worth hiding, so do not skip past the row.
+
 Point at the `epoch 0` row. Then at the header on the right, which reads
 `lifetime … · … of 576`.
 
