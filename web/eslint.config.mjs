@@ -42,13 +42,19 @@ const eslintConfig = defineConfig([
     files: ["lib/copy.ts", "scripts/copy-guard.mjs", "eslint.config.mjs"],
     rules: { "no-restricted-syntax": "off" },
   },
-  // Override default ignores of eslint-config-next.
+  // Overriding this replaces eslint-config-next's defaults, so they must be
+  // restated here rather than merged.
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated deployment output. Linting it produced 489 errors from bundled
+    // vendor code and made the documented `pnpm verify` command exit non-zero
+    // even though every source file was clean.
+    ".open-next/**",
+    ".wrangler/**",
   ]),
 ]);
 

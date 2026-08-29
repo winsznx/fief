@@ -29,12 +29,10 @@ import type {
   DataSource,
   Decision,
   DecisionEntry,
-  EntriesPage,
   EpochSummary,
   FeedStatus,
   Grant,
   Listing,
-  RenterFeedMessage,
   Settlement,
   ShowcasePair,
   VerifyResult,
@@ -599,11 +597,11 @@ export const liveDataSource: DataSource = {
     return [];
   },
 
-  subscribeRenterFeed(_tokenId, _onMessage) {
+  subscribeRenterFeed() {
     return () => {};
   },
 
-  subscribeRenterFeedWithStatus(_tokenId, _onMessage, onStatus?: (s: FeedStatus) => void) {
+  subscribeRenterFeedWithStatus(_t: string, _m: unknown, onStatus?: (s: FeedStatus) => void) {
     // There is no hosted feed service yet. Reporting 'closed' tells the UI the
     // truth; replaying on-chain entries as if they were a live private feed
     // would misrepresent the one thing renters actually pay for.
