@@ -316,23 +316,45 @@ async function buildAgent(agentId: bigint): Promise<Agent | null> {
       domain: string;
     };
 
-    const epoch = await readEpochSummary(agentId, a.epochId);
+    // Every epoch the agent ever opened, from the log rather than from
+    // `FiefAgent.epochId`. `EpochBook.openEpoch` does not advance that counter,
+    // so the two drift: agent 7 had epoch 1 open and running on chain while the
+    // token still reported 0, and the UI showed only the finished epoch 0.
+    const opened = await client.getLogs({
+      address: ADDR.epochBook,
+      event: EV.epochOpened,
+      args: { agentId },
+      fromBlock: DEPLOY_BLOCK,
+      toBlock: 'latest',
+    });
+
+    const ids = [...new Set(opened.map((l) => l.args.epochId as bigint))].sort((x, y) =>
+      x < y ? 1 : x > y ? -1 : 0,
+    );
+    if (ids.length === 0) ids.push(a.epochId);
+
+    const epochs = (await Promise.all(ids.map((id) => readEpochSummary(agentId, id)))).filter(
+      (e): e is EpochSummary => e !== null,
+    );
+    const epoch = epochs[0] ?? null;
 
     return {
       tokenId: agentId.toString(),
       name: `Agent ${agentId}`,
       owner: a.owner,
       operator: a.operator,
-      epoch: Number(a.epochId),
+      epoch: epoch?.epochId ?? Number(a.epochId),
       strategyHash: a.strategyHash,
       storageRoot: a.storageRoot,
       network: NETWORK,
       domain: a.domain,
-      decisionCount: epoch?.revealed ?? 0,
+      // Lifetime, across every epoch. A fresh epoch cannot reset this.
+      decisionCount: epochs.reduce((n, e) => n + e.revealed, 0),
       verified: true,
-      createdAt: epoch?.startTime ?? new Date(0).toISOString(),
+      createdAt: epochs.at(-1)?.startTime ?? new Date(0).toISOString(),
       lifecycle: epoch === null ? 'minted' : 'active',
       currentEpoch: epoch,
+      epochs,
     };
   } catch {
     return null;

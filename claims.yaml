@@ -92,7 +92,7 @@ claims:
     evidence:
       - "web/lib/data/live.ts readEpochSummary derives due/pending from spec timing"
       - "web/components/fief/completeness-bar.tsx renders both, labelled"
-      - "agent 7 mid-run: 33 of 33 due proven, contract publishes 10.76% over 288 slots"
+      - "agent 7 epoch 1 mid-run shows both numbers; epoch 0 is finished, so it shows one"
     why: >
       Deriving missed as slotCount - committed counted the unplayed future as
       failure: a healthy agent three hours into a 288-slot run read as 255
@@ -247,5 +247,14 @@ open:
   - id: forward-campaign
     claim: "A multi-day forward campaign of 100+ slots."
     rung: 0
-    status: not-started
+    status: in-progress
     blocked_on: "Wall-clock time. Needs the runtime running continuously."
+    note: >
+      Agent 7 epoch 0 is the first attempt and it failed: the runtime stopped at
+      slot 33 of 288 on 2026-08-25 20:32 UTC because the machine slept, and the
+      remaining 255 slots are permanently Missed. Left on the record and
+      deliberately not hidden — an operator outage is exactly the failure this
+      system exists to make unforgeable, and the epoch cannot be reopened,
+      backfilled or deleted. Agent 7 epoch 1 opened 2026-08-29 16:12 UTC under
+      supervise-campaign.sh, with commits spooled to disk so a restart can still
+      reveal them.

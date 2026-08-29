@@ -14,7 +14,8 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm copy-guard && pnpm contrast && pnpm test",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
-    "cf:deploy": "opennextjs-cloudflare deploy"
+    "cf:deploy": "opennextjs-cloudflare deploy",
+    "cf:ship": "pnpm verify && pnpm cf:build && pnpm cf:deploy"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

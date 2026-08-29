@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CompletenessBar } from '@/components/fief/completeness-bar';
+import { EpochHistory } from '@/components/fief/epoch-history';
 import { DecisionLedger } from '@/components/fief/decision-ledger';
 import { Hash } from '@/components/fief/hash';
 import { HonestStatusBadge } from '@/components/fief/honest-status-badge';
@@ -110,6 +111,11 @@ export default async function AgentRecordPage({ params }: PageProps<'/agents/[to
           the claim, and the rows beneath it are the evidence. Reading them the
           other way round is how a partial record passes for a complete one. */}
       {agent.currentEpoch !== null && <CompletenessBar epoch={agent.currentEpoch} />}
+
+      {/* Below the current epoch, never above it: the history is context for
+          the headline number, and an operator who abandoned four runs should
+          not get to present that as the record itself. */}
+      <EpochHistory epochs={agent.epochs} currentId={agent.epoch} />
 
       {/* ── Sealed strategy + context ──────────────────────────────────── */}
       {/* PnlContext returns null when the agent has no series (D16), so the

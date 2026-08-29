@@ -148,6 +148,18 @@ export interface Agent {
   // ── v2 ─────────────────────────────────────────────────────────────────
   /** The agent's current forward epoch, or null before one is opened. */
   currentEpoch: EpochSummary | null;
+
+  /**
+   * Every epoch the agent has ever opened, newest first, including abandoned
+   * ones. This is the answer to the sharpest objection the design faces: an
+   * operator whose epoch is going badly can always open a fresh one, and Fief
+   * does not prevent that. It makes it visible. An agent with four abandoned
+   * epochs behind a clean one has a record that says so, permanently.
+   *
+   * Enumerated from `EpochOpened` logs, not from `FiefAgent.epochId`, because
+   * `openEpoch` does not advance that counter and the two drift.
+   */
+  epochs: EpochSummary[];
 }
 
 export interface Listing {

@@ -322,9 +322,12 @@ const STRATEGY_4 = '0x91e3c7a5f2d08b46e1c3a5f7d9b1e3c5a7f9d1b3e5c7a9f1d3b5e7c9a1
 const STRATEGY_5 = '0x5f0d2b4e6c8a0f2d4b6e8c0a2f4d6b8e0c2a4f6d8b0e2c4a6f8d0b2e4c6a8f0d' as const;
 
 interface AgentSpec extends GenSpec {
-  // `currentEpoch` is derived from the generated ledger, never authored, so it
-  // is omitted here alongside the other derived fields.
-  agent: Omit<Agent, 'decisionCount' | 'verified' | 'strategyHash' | 'epoch' | 'currentEpoch'>;
+  // `currentEpoch` and `epochs` are derived from the generated ledger, never
+  // authored, so they are omitted here alongside the other derived fields.
+  agent: Omit<
+    Agent,
+    'decisionCount' | 'verified' | 'strategyHash' | 'epoch' | 'currentEpoch' | 'epochs'
+  >;
 }
 
 const AGENT_SPECS: AgentSpec[] = [
@@ -546,6 +549,7 @@ function buildAll(): {
   for (const spec of AGENT_SPECS) {
     const list = generateEntries(spec);
     entries.set(spec.tokenId, list);
+    const summary = summarizeEpoch(spec, list);
 
     agents.push({
       ...spec.agent,
@@ -557,7 +561,10 @@ function buildAll(): {
       // Not a percentage: every revealed entry passed the on-chain check by
       // invariant I1, so there is no fraction to report (v1.1 Q1 / D15).
       verified: true,
-      currentEpoch: summarizeEpoch(spec, list),
+      currentEpoch: summary,
+      // Fixtures author one epoch per agent. Live data enumerates them from
+      // EpochOpened logs, where an agent can have several.
+      epochs: [summary],
     });
   }
 

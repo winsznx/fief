@@ -184,10 +184,21 @@ rather than dismissed.
 **Traction and communication (10%).** The live app is at
 https://fief.timjosh507.workers.dev. Honest by construction: the marketplace
 shows agents at 0% and 50% alongside the ones at 100%, because those runs really
-did miss slots. A forward campaign is accruing a 288-slot record at a five-minute
-cadence. Still the weakest axis, and the honest gap is external users: one
-independent strategy author and one independent renter would be worth more here
-than any further engineering.
+did miss slots.
+
+The sharpest evidence arrived by accident. Agent 7 epoch 0 was a 288-slot
+forward campaign at a five-minute cadence. The runtime stopped at slot 33 on
+2026-08-25 at 20:32 UTC, no crash and nothing in the log, because the machine
+went to sleep. The other 255 slots are now permanently `Missed` on mainnet. We
+cannot reopen that epoch, cannot backfill it, and cannot delete it, so the
+operator's own outage is a permanent public fact about the agent. That is the
+whole thesis, demonstrated against us rather than by us. Agent 7 epoch 1 is
+running now under a supervisor, with commits spooled to disk so a restart can
+still reveal them.
+
+Still the weakest axis, and the honest gap is external users: one independent
+strategy author and one independent renter would be worth more here than any
+further engineering.
 
 ## 8. Known gaps, stated rather than hidden
 
