@@ -150,9 +150,11 @@ to. The distinction matters, so here it is before the good parts.
   Minting, resealing, listing, settling and audit grants all run through
   `runtime/` CLIs and deliberately throw in the console UI.
 - **One agent is listed.** Agent 6. The other seven cannot be rented.
-- **Inference fails about one slot in nine.** On the current campaign, 5 of 45
-  attempted slots were lost to the 0G Compute provider returning `fetch failed`.
-  There is no retry inside the commit deadline yet, and there is room for one.
+- **Inference fails about one slot in nine.** On the current campaign 5 slots
+  were lost before their deadline: four to the 0G Compute provider returning
+  `fetch failed`, one to `Missing or invalid parameters`. There is no retry
+  inside the 120s commit deadline yet, and inference takes 30-40s, so there is
+  room for one.
 - **No stranger has used it.** The one rental was from a wallet we generated. It
   is a real second wallet, not the deployer, but it is not a third party.
 

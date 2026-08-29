@@ -42,3 +42,7 @@ Thumbs.db
 # Campaign runtime artifacts. The record lives on chain; these are local traces.
 *.out
 *.spool.jsonl
+
+# Supervisor lock directories.
+running/*.lock
+runtime/.campaign-*.lock/

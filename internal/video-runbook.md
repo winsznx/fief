@@ -1,112 +1,112 @@
 # Demo video runbook
 
-Every beat below was run against live mainnet and timed, most recently
-2026-08-29. Nothing here is aspirational; if a step is slow or can't be filmed
-live, it says so and gives the alternative. Every quoted on-screen string was
-read out of the deployed page, so if you can't find it, the page changed.
+Read this top to bottom. Every command is a copy-paste block. Every shot says
+which window, what to do, and what to say.
 
-**Target: 2:50.** The run of show below totals 2:50, leaving ten seconds of
-margin under the three-minute cap for a slow tab switch or a breath.
+Verified against live mainnet 2026-08-29. Every on-screen string quoted here was
+read out of the deployed page, so if you can't find one, the page changed.
 
 ---
 
-## Before you press record
+## How much terminal is in this video
 
-**1. Pre-warm every page.** Cold loads, re-measured 2026-08-29 21:0x UTC:
-`/agents` 1.5s, `/proof` 4.9s, `/agents/7` 8.3s, `/` ~6.5s. Agent 7 keeps
-getting slower as epoch 1 accrues slots, so pre-warm it last and expect ~10s by
-the time you record. Live reads are slow and there is no
-cache, deliberately, because a stale completeness number is the one thing this
-product must not show. Load each of these once, then leave the tabs open:
+**Three terminal moments. Three commands typed. That's all.**
+
+| when | window | you type |
+|---|---|---|
+| 0:12 – 0:58 | Terminal **B** | 2 commands, back to back (shots 2, 3, 4) |
+| 2:20 – 2:40 | Terminal **A** | 1 command (shot 9) |
+
+Everything else — shots 1, 5, 6, 7, 8, 10 — is browser tabs and a title card. No
+typing.
+
+**No wallet. No gas. No transaction.** `demo-reject` simulates before sending,
+so the rejection happens locally and nothing is ever broadcast. Run it as many
+takes as you like.
+
+---
+
+## Before recording
+
+### 1. Two terminal windows
+
+Font 18pt+, dark theme, ~100 columns. Do these two `cd`s now so you never type
+a path on camera.
+
+Terminal **A**:
 
 ```
-https://fief.timjosh507.workers.dev/
+cd ~/fief/packages/verify
+```
+
+Terminal **B**:
+
+```
+cd ~/fief/runtime
+```
+
+If your prompt says `bash-5.3$` you are in a nested shell. Type `exit` first.
+
+### 2. Confirm the key is in place
+
+In Terminal **B**:
+
+```
+grep -c PRIVATE_KEY .env
+```
+
+Prints `1`. Nothing to export, nothing to paste on camera. Terminal **A** needs
+no key at all — the verifier reads public RPC only, which is the whole point of
+it.
+
+### 3. Confirm the campaign is alive
+
+In Terminal **B**:
+
+```
+pgrep -f supervise-campaign.sh
+```
+
+**If it prints a number, you are done. Skip to step 4.**
+
+Only if it printed nothing, paste this and wait for one slot to land:
+
+```
+AGENT=7 EPOCH=1 CAMPAIGN_LOG=campaign2.log CAMPAIGN_SPOOL=campaign2.spool.jsonl nohup ./supervise-campaign.sh > campaign2.out 2>&1 &
+```
+
+### 4. Open these browser tabs, in this order
+
+```
 https://fief.timjosh507.workers.dev/proof
 https://fief.timjosh507.workers.dev/agents
-https://fief.timjosh507.workers.dev/agents/8
 https://fief.timjosh507.workers.dev/agents/7
 https://chainscan.0g.ai/tx/0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b
-https://chainscan.0g.ai/tx/0x09a93df86494db4ac0974b86ec6479d8254be5af43baff130cd04a4d8c16af49
 ```
 
-The first ChainScan link is shot 5 (the tampered reveal, the one you must have).
-The second is the optional supporting cut in shot 2.
+Let every one finish loading, then leave them open. Cold loads are slow on
+purpose — there is no cache, because a stale completeness number is the one
+thing this product must never show. `/agents` 1.5s, `/proof` 4.9s, `/agents/7`
+8.3s and climbing as the epoch grows. Pre-warm `/agents/7` last.
 
-**2. Terminal setup.** Font 18pt+, dark theme, window ~100 columns. Two tabs:
+### 5. Record at 1080p minimum
 
-```bash
-cd ~/fief/packages/verify     # tab 1
-cd ~/fief/runtime             # tab 2
-```
-
-No key setup, no exports, nothing to paste on camera. `runtime/.env` already
-holds the funded mainnet operator (`0xbF7EF900…Bf31`, the same wallet the
-campaign runs as) and every runtime script loads it automatically. Confirm it in
-one line before you start:
-
-```bash
-cd ~/fief/runtime && grep -c PRIVATE_KEY .env    # prints 1
-```
-
-Tab 1 needs no key at all. The verifier reads public RPC only, which is the
-whole claim it is there to make.
-
-`demo-reject` simulates the rejected call before sending, so it never becomes a
-transaction and spends no gas. Run it as many takes as you like.
-
-**3. Confirm the campaign is still running.** Shot 7 depends on it. Run these
-two, do not run anything else in this step:
-
-```bash
-tail -3 ~/fief/runtime/campaign2.out     # should show a recent slot committing
-pgrep -f supervise-campaign.sh           # should print a pid
-```
-
-If `pgrep` printed a pid, you are done with this step. **Skip the block below.**
-
-ONLY IF `pgrep` printed nothing, restart it and let one slot land before
-recording. It resumes without backfilling anything:
-
-```bash
-cd ~/fief/runtime
-AGENT=7 EPOCH=1 CAMPAIGN_LOG=campaign2.log \
-  CAMPAIGN_SPOOL=campaign2.spool.jsonl nohup ./supervise-campaign.sh > campaign2.out 2>&1 &
-```
-
-**4. Screen recording at 1080p minimum.** ChainScan zoomed so hashes are
-readable when the video is scaled down.
+Zoom ChainScan so hashes stay legible when the video is scaled down.
 
 ---
 
-## The only three commands you type on camera
+## Run of show
 
-Everything else in this video is browser tabs and clicking. Do the two `cd`
-lines before you hit record so that on camera you type nothing but these three.
-
-| shot | tab | command |
-|---|---|---|
-| 2 | 2 | `NETWORK=mainnet AGENT=7 EPOCH=0 pnpm schedule` |
-| 3 | 2 | `NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject` |
-| 9 | 1 | `pnpm start -- --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19` |
-
-Lines in this document that begin with three backticks are markdown formatting
-around a command, never part of it. Copy what is between them.
+Total 2:50. Ten seconds of margin under the three-minute cap.
 
 ---
 
-## Shot list
+### Shot 1 · 0:00–0:12 · static image
 
-Read this top to bottom while recording. Every line says where the thing is,
-what to click, and what to say. Nothing needs hunting for.
+**Where:** A screenshot of any trading-bot listing with a glossy backtest chart.
+Put the word **Illustrative** in a corner so nobody thinks it is ours.
 
----
-
-### Shot 1 — 0:00 to 0:12 (12s)
-
-**Screen:** A screenshot of any trading-bot listing with a glossy backtest
-chart. Add the word **Illustrative** in a corner so nobody thinks it is ours.
-
-**Do:** Nothing. Static hold.
+**Do:** Nothing. Hold.
 
 **Say:**
 > "A trading bot can show a beautiful backtest. But it can quietly remove the
@@ -114,36 +114,20 @@ chart. Add the word **Illustrative** in a corner so nobody thinks it is ours.
 
 ---
 
-### Shot 2 — 0:12 to 0:30 (18s)
+### Shot 2 · 0:12–0:30 · Terminal B
 
-**Screen:** Terminal tab 2, in `~/fief/runtime`.
+**Do:** Paste and run.
 
-**Do:** Run:
-
-```bash
+```
 NETWORK=mainnet AGENT=7 EPOCH=0 pnpm schedule
 ```
 
-Takes about 3 seconds. Hold on the output, and point at these two lines:
+Takes about 3 seconds. Point at these two lines in the output:
 
 ```
   slots scheduled   288
-  ...
   the schedule was fixed 166s BEFORE its first slot — no outcome existed yet
 ```
-
-**Why a terminal and not the explorer:** the contracts are not source-verified
-on ChainScan, so `openEpoch` renders as raw hex there and there is no readable
-`288` to point at. This reads the same values straight off the same contract.
-
-**Optional supporting cut** if you want the explorer on screen for a beat:
-
-```
-https://chainscan.0g.ai/tx/0x09a93df86494db4ac0974b86ec6479d8254be5af43baff130cd04a4d8c16af49
-```
-
-Status `Success`, `To` the EpochBook, timestamped `2026-08-25 17:49:02 UTC`. Do
-not promise the viewer decoded parameters there.
 
 **Say:**
 > "Fief fixes the bot's schedule first. Two hundred and eighty-eight slots, a
@@ -153,18 +137,18 @@ not promise the viewer decoded parameters there.
 
 ---
 
-### Shot 3 — 0:30 to 0:48 (18s)
+### Shot 3 · 0:30–0:48 · Terminal B
 
-**Screen:** Terminal tab 2, sitting in `~/fief/runtime`, empty prompt.
+Same window, don't switch.
 
-**Do:** Type and run:
+**Do:** Paste and run.
 
-```bash
+```
 NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject
 ```
 
-It prints for about 8 seconds, so it will finish partway through your line.
-Keep talking; don't wait for it in silence.
+Takes about 8 seconds, so it finishes partway through your line. Keep talking,
+don't wait for it in silence.
 
 **Say:**
 > "Now I am going to take a decision that is already on the public record,
@@ -172,10 +156,9 @@ Keep talking; don't wait for it in silence.
 
 ---
 
-### Shot 4 — 0:48 to 0:58 (10s)
+### Shot 4 · 0:48–0:58 · Terminal B
 
-**Screen:** Same terminal, now showing the finished output. The two lines that
-matter are near the bottom:
+Same window, no new command. Just hold on the finished output.
 
 ```
    REJECTED: AlreadyRevealed
@@ -183,21 +166,15 @@ completeness after  : 10.76%  (31 revealed)
    unchanged — a rejected reveal cannot damage the record
 ```
 
-**Do:** Hold still on those three lines. Do not scroll.
-
 **Say:**
 > "The chain refuses the rewrite. And the agent's score does not move, so nobody
 > can damage someone else's record by spamming bad submissions at it either."
 
 ---
 
-### Shot 5 — 0:58 to 1:14 (16s)
+### Shot 5 · 0:58–1:14 · browser, ChainScan tab
 
-**Screen:** ChainScan tab already open at the tampered reveal:
-
-```
-https://chainscan.0g.ai/tx/0x6d68ade363d72e788f01120684de7dd179624d7e5ff5258335b0741cb055a06b
-```
+**Where:** The ChainScan tab you opened in step 4.
 
 **Do:** Point at **Status: Success** at the top. Then click the **Logs** tab and
 point at the decoded event: `DecisionRejected`, agent `8`, slot `1`, reason
@@ -211,13 +188,11 @@ point at the decoded event: `DecisionRejected`, agent `8`, slot `1`, reason
 
 ---
 
-### Shot 6 — 1:14 to 1:34 (20s)
+### Shot 6 · 1:14–1:34 · browser, `/proof` tab
 
-**Screen:** Browser tab already on `https://fief.timjosh507.workers.dev/proof`.
-
-**Do:** The page opens on the heading **"Two transactions. One byte apart."**
-Scroll down about one screen to the panel headed **"Slot 1 · epoch 0"**. It is a
-horizontal timeline with four stops, left to right:
+**Do:** The page opens on **"Two transactions. One byte apart."** Scroll down
+about one screen to the panel headed **"Slot 1 · epoch 0"**. It is a horizontal
+timeline with four stops:
 
 ```
 18:12:05  sealed commit
@@ -226,8 +201,7 @@ horizontal timeline with four stops, left to right:
 18:18:05  revealed + verified
 ```
 
-Point at the first two, then sweep right to the last two. The sentence directly
-under the timeline is the one you are paraphrasing.
+Point at the first two, then sweep right to the last two.
 
 **Say:**
 > "Before reveal, the renter gets the direction and the public chain gets only a
@@ -237,13 +211,10 @@ under the timeline is the one you are paraphrasing.
 
 ---
 
-### Shot 7 — 1:34 to 1:50 (16s)
+### Shot 7 · 1:34–1:50 · browser, `/agents` tab
 
-**Screen:** Browser tab on `https://fief.timjosh507.workers.dev/agents`, headed
-**"Agents and their records"**.
-
-**Do:** Let the grid of eight agent cards sit for two seconds. Then click the
-card for **Agent 7**. It lands on the panel headed **"Forward record"** with the
+**Do:** Let the grid of eight agent cards sit for two seconds. Click the card
+for **Agent 7**. It lands on the panel headed **"Forward record"**, showing the
 badge **epoch 1** and, beside the big percentage, **"epoch running · N not yet
 due"**.
 
@@ -254,30 +225,17 @@ due"**.
 
 ---
 
-### Shot 8 — 1:50 to 2:20 (30s) — the one that matters
+### Shot 8 · 1:50–2:20 · browser, still on `/agents/7` — the one that matters
 
-**Screen:** Still on `/agents/7`. Scroll down **one panel**, past "Forward
-record", to the panel headed **"Every epoch, including the bad ones."**
-
-**Do:** It has two rows. Hold on them:
+**Do:** Scroll down one panel, past "Forward record", to the panel headed
+**"Every epoch, including the bad ones."** Two rows:
 
 ```
-epoch 1   <moves>  N of 288 scheduled    current  running
-epoch 0   10.76%   31 of 288 scheduled   255 missed
+epoch 1   <climbing>   N of 288 scheduled    current  running
+epoch 0   10.76%       31 of 288 scheduled   255 missed
 ```
 
-Epoch 1's row climbs while you record, which is the point of it. Epoch 0's row
-is frozen forever and those are the numbers you narrate.
-
-Epoch 1 carries a few missed slots of its own, and they are honest ones: the 0G
-Compute provider returned `fetch failed` on four slots and rejected one as
-`Missing or invalid parameters`, so no TEE-signed decision existed to commit
-before those deadlines. If a viewer catches it, that is a *good* question to
-get. The inference layer failed, the agent could not produce a signed call in
-time, and the record says so instead of quietly dropping those slots from the
-denominator. Nothing about that is worth hiding, so do not skip past the row.
-
-Point at the `epoch 0` row. Then at the header on the right, which reads
+Point at the `epoch 0` row. Then at the header on the right, reading
 `lifetime … · … of 576`.
 
 **Say:**
@@ -292,19 +250,24 @@ Do not apologise for this and do not explain it away. It is the only moment in
 the video where the system costs *us* something, and it is worth more than every
 green checkmark in the other nine shots.
 
+Epoch 1's row climbs while you record. Narrate epoch 0's numbers, which are
+frozen. Epoch 1 also carries a few missed slots of its own, and they are honest
+ones: the 0G Compute provider returned `fetch failed` on four slots and rejected
+one as `Missing or invalid parameters`, so no signed decision existed to commit
+before those deadlines. If a viewer catches it, that is a *good* question to
+get, so don't skip past the row.
+
 ---
 
-### Shot 9 — 2:20 to 2:40 (20s)
+### Shot 9 · 2:20–2:40 · Terminal A
 
-**Screen:** Terminal tab 1, sitting in `~/fief/packages/verify`.
+**Do:** Switch to Terminal A. Paste and run.
 
-**Do:** Run:
-
-```bash
+```
 pnpm start -- --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19
 ```
 
-Takes about 7 seconds. Hold on the tail of the output:
+About 7 seconds. Hold on the tail:
 
 ```
   ok    slot 1: sha256(respData) matches the commitment
@@ -322,100 +285,65 @@ Takes about 7 seconds. Hold on the tail of the output:
 
 ---
 
-### Shot 10 — 2:40 to 2:50 (10s)
+### Shot 10 · 2:40–2:50 · title card
 
-**Screen:** Title card. Name, the live URL, the repo.
+**Where:** Name, the live URL, the repo.
 
 **Say:**
 > "Fief. Private alpha now, public proof later."
 
 ---
 
-## Exact commands
+## If something breaks mid-recording
 
-**Shot 2** (~3s, read-only):
-
-```bash
-cd ~/fief/runtime
-NETWORK=mainnet AGENT=7 EPOCH=0 pnpm schedule
-```
-
-**Shot 3-4** (~8s, safe to run repeatedly, changes no state):
-
-```bash
-cd ~/fief/runtime
-NETWORK=mainnet AGENT=7 EPOCH=0 pnpm demo-reject
-```
-
-Point it at epoch 0, not the running epoch 1. Epoch 0 has 31 revealed slots to
-pick from and is finished, so the output is identical every take.
-
-**Shot 9** (6.9s warm, ~12s on the first run of a cold process; the 20s shot
-window covers either):
-
-```bash
-cd ~/fief/packages/verify
-pnpm start -- --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19
-```
-
-Optional stronger version if you have room, recounts the whole epoch (~7s):
-
-```bash
-pnpm start -- --agent 8 --epoch 0
-```
+- **A page hangs past ~12s.** Reload once. Live reads occasionally hit a slow
+  RPC and there is no cache to fall back on.
+- **`demo-reject` finds no revealed slot.** It shouldn't — agent 7 epoch 0 is
+  finished and its 31 revealed slots are frozen. If it happens, the RPC is
+  failing to return calldata. Retry once, then fall back to
+  `AGENT=8 EPOCH=0 pnpm demo-reject`.
+- **`demo-reject` prints `FAIL — the chain ACCEPTED a rewritten entry`.** Stop
+  recording. That means an invariant broke and the video is the least of the
+  problem.
+- **ChainScan is slow.** Shot 9 makes the same point and does not need the
+  explorer. Cut shot 5 rather than stall.
 
 ---
 
-## What you cannot film live, and why
+## Deliberately not filmed
 
 **`pnpm adversarial`** is the real adversarial proof — late commit, early
 reveal, tampered byte, honest reveal afterwards — but it spends about five
-minutes waiting on genuine slot deadlines and disclosure windows. Do not try to
-speed it up in the edit; a jump cut through a timing proof is exactly the thing
-a skeptical judge would distrust. Shots 3 and 5 cover the same ground with
-artifacts that are already on chain.
+minutes waiting on genuine slot deadlines. Do not speed it up in the edit; a jump
+cut through a timing proof is exactly what a skeptical judge should distrust.
+Shots 3 and 5 cover the same ground with artifacts already on chain.
 
-**The rent flow.** The button is wired and deployed, but no rent transaction
-has been signed from a browser yet. Either skip it, or connect MetaMask and
-rent agent 6 for real before recording (~0.002 OG plus gas) and add it as a
-shot. If you do, that also gives you the screenshot for the X post.
+**The rent flow.** Wired and deployed, but no rent has ever been signed from a
+browser wallet, and the first attempt should not be live on camera. It also does
+not fit: you are at 2:50 of a 3:00 cap and a MetaMask connect plus confirm is
+20–30s. Do it off camera before submitting instead — agent 6 is the only active
+listing, 0.001 OG minimum escrow. That closes the last partial claim in
+`claims.yaml` and gives you a screenshot for the X post.
 
 ---
 
-## Numbers to quote, verified 2026-08-29
+## Numbers, verified 2026-08-29
 
-| claim | value | where it comes from |
+| claim | value | source |
 |---|---|---|
 | private window | 338 s | agent 8 slot 1, `slotRevealOpen - committedAt` |
 | commit margin | 98 s inside the deadline | same slot |
 | agent 8 completeness | 100%, 2 of 2 | `completenessBps(8,0)` |
 | verifier result | 6 of 6 checks | `fief-verify --tx 0xc8543dfc…` |
-| live agents | 8 | marketplace |
-| agent 7 epoch 0 | 10.76%, 31 of 288, 255 missed | the outage, finished |
-| the outage | stopped 2026-08-25 20:32 UTC at slot 33 | `runtime/campaign.log`, last line |
-| agent 7 epoch 1 | opened 2026-08-29 16:12 UTC, 288 slots at 300 s | running under the supervisor |
-| agent 7 epoch 0 `openEpoch` | `0x09a93df8…` | shot 2 |
-| red tamper tx | `0x6d68ade3…`, success, `DecisionRejected(8, 1, "BadReveal")` | shot 5, receipt read 2026-08-29 |
 | agents on chain | 8 | `nextAgentId()` returns 9 |
-
-Epoch 1's completeness moves while you record. Quote it from the screen, not
-from this table.
+| agent 7 epoch 0 | 10.76%, 31 of 288, 255 missed | frozen, the outage |
+| the outage | stopped 2026-08-25 20:32 UTC at slot 33 | `runtime/campaign.log`, last line |
+| agent 7 epoch 1 | opened 2026-08-29 16:12 UTC, 288 slots at 300 s | running, climbing |
+| red tamper tx | success, `DecisionRejected(8, 1, "BadReveal")` | receipt read 2026-08-29 |
+| shot 2 openEpoch | `0x09a93df8…` | agent 7 epoch 0 |
 
 Do **not** say "242 tests" or "four 0G components" on camera. Nobody is moved by
 a test count. They are moved by a bot being unable to delete its losing calls.
 
----
-
-## If something breaks mid-recording
-
-- **A page hangs past ~10s.** Reload once. Live reads occasionally hit a slow
-  RPC; there is no cache to fall back on.
-- **`demo-reject` says no revealed slot found.** It should not: agent 7 epoch 0
-  is finished, so its 31 revealed slots are frozen. If it happens anyway the RPC
-  is failing to return calldata; retry once, then fall back to
-  `AGENT=8 EPOCH=0 pnpm demo-reject`.
-- **`demo-reject` prints `FAIL — the chain ACCEPTED a rewritten entry`.** Stop
-  recording. That line means an invariant broke and the video is the least of
-  the problem.
-- **ChainScan is slow.** The verifier terminal shot covers the same claim and
-  does not depend on the explorer.
+Lines beginning with three backticks in this document are markdown formatting
+around a command, never part of it. Copy what is between them.

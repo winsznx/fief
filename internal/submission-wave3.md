@@ -221,10 +221,11 @@ further engineering.
 - **The operator runs an unpublished CLI.** `@fief/runtime` is private, so
   running an agent means cloning the repo. The commit loop genuinely needs a
   long-lived process, but it should be a package or a hosted runner.
-- **Inference fails about one slot in nine.** 5 of 45 attempted slots on the
-  current campaign were lost to the 0G Compute provider returning `fetch
-  failed`. There is no retry inside the 120s commit deadline yet, and inference
-  takes 30-40s, so there is room for one.
+- **Inference fails about one slot in nine.** Five slots on the current
+  campaign were lost before their deadline: four to the 0G Compute provider
+  returning `fetch failed`, one to `Missing or invalid parameters`. There is no
+  retry inside the 120s commit deadline yet, and inference takes 30-40s, so
+  there is room for one.
 - **Only one agent is listed for rent.** Agent 6. The other seven cannot be
   rented at all.
 - **ERC-8004 `giveFeedback` is not exercised on-chain.** Serve-proof issuance is
