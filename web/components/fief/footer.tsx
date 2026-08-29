@@ -54,7 +54,7 @@ export function Footer() {
             Provenance only. No custody, no execution, no verification of profit or loss.
           </p>
           <code className="text-muted-foreground border-border shrink-0 rounded-sm border px-3 py-1 font-mono text-xs">
-            pnpm fief-verify --tx &lt;hash&gt;
+            cd packages/verify &amp;&amp; pnpm fief-verify --tx &lt;hash&gt;
           </code>
         </div>
       </div>

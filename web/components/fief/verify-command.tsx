@@ -17,7 +17,11 @@ export function VerifyCommand({
   className?: string;
   label?: string;
 }) {
-  const command = `pnpm fief-verify --tx ${txHash}`;
+  // Self-contained on purpose. This string is copied by a button and pasted
+  // into a shell that is almost certainly at the repo root, so a bare
+  // `pnpm fief-verify` fails with "Command not found" — which is exactly the
+  // wrong first impression for the one affordance that says "don't trust us".
+  const command = `cd packages/verify && pnpm fief-verify --tx ${txHash}`;
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>

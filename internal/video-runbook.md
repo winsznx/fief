@@ -264,8 +264,11 @@ get, so don't skip past the row.
 **Do:** Switch to Terminal A. Paste and run.
 
 ```
-pnpm start -- --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19
+pnpm fief-verify --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19
 ```
+
+This is the same command the live site's copy button hands a visitor, which is
+why it is worth showing rather than a script alias only we know.
 
 About 7 seconds. Hold on the tail:
 
@@ -334,7 +337,7 @@ listing, 0.001 OG minimum escrow. That closes the last partial claim in
 | private window | 338 s | agent 8 slot 1, `slotRevealOpen - committedAt` |
 | commit margin | 98 s inside the deadline | same slot |
 | agent 8 completeness | 100%, 2 of 2 | `completenessBps(8,0)` |
-| verifier result | 6 of 6 checks | `fief-verify --tx 0xc8543dfc…` |
+| verifier result | green 6 of 6; red 4 passed 2 failed, exit 1 | `pnpm fief-verify --tx …` |
 | agents on chain | 8 | `nextAgentId()` returns 9 |
 | agent 7 epoch 0 | 10.76%, 31 of 288, 255 missed | frozen, the outage |
 | the outage | stopped 2026-08-25 20:32 UTC at slot 33 | `runtime/campaign.log`, last line |

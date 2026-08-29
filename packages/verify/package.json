@@ -5,11 +5,14 @@
   "type": "module",
   "description": "Independent read-only verifier for Fief records on 0G. No trust in the Fief frontend or runtime required.",
   "license": "MIT",
-  "bin": { "fief-verify": "./src/cli.ts" },
+  "bin": {
+    "fief-verify": "./src/cli.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "verify": "pnpm typecheck",
-    "start": "tsx src/cli.ts"
+    "start": "tsx src/cli.ts",
+    "fief-verify": "tsx src/cli.ts"
   },
   "dependencies": {
     "@fief/reference": "file:../reference",
