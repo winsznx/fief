@@ -20,9 +20,9 @@ calls that went wrong.
 > by simply not publishing the calls that went wrong. Fief closes that. An agent
 > opens a forward epoch that fixes its schedule on-chain before any outcome is
 > knowable, then commits every scheduled decision before its deadline as a
-> sealed 0G Compute TEE receipt. Renters get the cleartext signal immediately
-> and can verify it against the on-chain commitment before acting; the public
-> sees only a hash until the market horizon passes, at which point the receipt
+> sealed 0G Compute TEE receipt. A renter holding the cleartext can check it
+> against the on-chain commitment before acting, while the public sees only a
+> hash until the market horizon passes, at which point the receipt
 > is revealed and verified byte-exact against the agent's sealed strategy. Every
 > scheduled slot resolves publicly to committed, missed or invalid, so
 > completeness is a number nobody can edit after the fact.
@@ -34,9 +34,9 @@ calls that went wrong.
 
 https://github.com/winsznx/fief — public, MIT, commits throughout the wave.
 
-Clean-clone reproduction verified 2026-08-25: **242 tests** pass from a fresh
-clone (87 reference, 71 contracts, 77 web, 7 runtime) and the web builds. Steps
-in [SETUP.md](../SETUP.md).
+**242 tests** green (87 reference, 71 contracts, 77 web, 7 runtime), re-run
+from source 2026-08-29. Clean-clone reproduction from a fresh checkout verified
+2026-08-25. Steps in [SETUP.md](../SETUP.md).
 
 ## 3. 0G integration proof
 
@@ -118,13 +118,13 @@ cd packages/verify && pnpm start -- --tx 0xc8543dfc…      # 6/6
 > before any outcome exists, so a call that never shows up is a permanent,
 > public Missed.
 >
-> Renters get the signal while it's worth money. Everyone else gets the proof
-> once it isn't.
+> The call stays sealed while it's worth money. The proof goes public once it
+> isn't.
 >
 > Live on @0G_labs mainnet:
 > • schedule timestamped before any outcome was knowable
 > • every call committed inside its deadline from a TEE-signed 0G Compute receipt
-> • sealed 338s while the renter holds it, then revealed and verified byte-exact
+> • sealed 338s, then revealed and verified byte-exact
 > • tamper one byte and the chain rejects it, and the honest record is undamaged
 >
 > Live: fief.timjosh507.workers.dev/agents/7
@@ -149,6 +149,14 @@ appears is a permanent, public `Missed`.
 can, and it is visible. Every epoch ever opened is listed, including abandoned
 ones, and lifetime completeness spans all of them. Made visible, not made
 impossible, and the README says so.
+
+**"Can I actually use this today?"** Partly, and the README says which parts.
+You can read every agent's record, verify any of it yourself from a public RPC
+with no wallet, and rent agent 6 from your own wallet. You cannot yet be
+*delivered* a signal: nothing serves the cleartext to a renter, so Fief today is
+a proof of mechanism on mainnet rather than a service you can subscribe to. That
+is the first thing to build next, and it is a web route rather than a
+cryptographic problem.
 
 **"Is the signal actually good?"** Unknown, and Fief never claims otherwise.
 It proves provenance, timing and completeness. Profitability is not a
@@ -201,6 +209,24 @@ further engineering.
 
 ## 8. Known gaps, stated rather than hidden
 
+- **Renters receive nothing. There is no signal delivery.** This is the largest
+  gap and it is a product gap, not a cryptographic one. A renter can escrow
+  on-chain and then has no way to be sent the cleartext: the payload is produced
+  inside the operator's runtime process and no API, feed or route serves it. In
+  `runtime/src/cli/rental.ts` the renter is a variable in the same script, which
+  is why that flow completes. What is proven is narrower and worth stating
+  precisely: a payload, once held, verifies against the on-chain commitment
+  before any reveal exists. Fief today is a proof of mechanism on mainnet, not a
+  service anyone can subscribe to.
+- **The operator runs an unpublished CLI.** `@fief/runtime` is private, so
+  running an agent means cloning the repo. The commit loop genuinely needs a
+  long-lived process, but it should be a package or a hosted runner.
+- **Inference fails about one slot in nine.** 5 of 45 attempted slots on the
+  current campaign were lost to the 0G Compute provider returning `fetch
+  failed`. There is no retry inside the 120s commit deadline yet, and inference
+  takes 30-40s, so there is room for one.
+- **Only one agent is listed for rent.** Agent 6. The other seven cannot be
+  rented at all.
 - **ERC-8004 `giveFeedback` is not exercised on-chain.** Serve-proof issuance is
   proven against the SDK's own verifier, but redemption needs an agent minted
   through a trusted attestor into 0G's TEE sandbox. Scoped in PRD v2 §16.2.

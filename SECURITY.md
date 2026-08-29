@@ -57,7 +57,7 @@ trusting this repo, its frontend, or its operator.
 | open an epoch over a resolved window | `startTime >= block.timestamp` | `EpochBook.openEpoch`, I11 |
 | tamper the revealed bytes | reveal must open the published commitment | I14 |
 | replay a genuine receipt into another slot | commit line names book, chain, agent, epoch, slot | `EXP` memcmp |
-| sit on a losing call, never reveal | reveal is permissionless; the renter holds the payload | by design |
+| sit on a losing call, never reveal | reveal is permissionless, so anyone holding the payload can publish it; and an unrevealed slot resolves to `invalid` at finalize either way | by design, but see **No signal delivery** below |
 | grief an agent with bad reveals | a failed reveal changes no state; invalid is derived at finalize | `RecordBook` |
 | block settlement by refusing payment | pull payments; a hostile payee breaks only their own withdrawal | `RentalDesk.withdraw` |
 | operator key theft | rotate via `setOperator`; junk reveals fail verification | `FiefAgent` |
@@ -66,6 +66,24 @@ trusting this repo, its frontend, or its operator.
 | rate an agent you never used | ERC-8004 `giveFeedback` requires a serve proof bound to you | upstream |
 
 ## Known sharp edges
+
+- **No signal delivery.** This is the largest gap in the product and it is not a
+  cryptographic one. A renter can escrow on-chain and then receive nothing,
+  because nothing delivers the cleartext to them. `RenterMessage` is produced
+  inside the runtime process and never leaves it; there is no API, no feed and
+  no route in the web app that serves it. In `runtime/src/cli/rental.ts` the
+  "renter" is a variable in the same script, which is why that flow completes.
+
+  It matters for the threat model, not just for usability. Two mitigations above
+  assume a renter is actually holding a payload: "sit on a losing call" relies
+  on someone other than the operator being able to publish it, and "renter
+  distillation" is only a real risk once renters receive outputs at all. Today
+  the operator is the sole holder of every payload before reveal, so the
+  permissionless-reveal mitigation is theoretical rather than exercised.
+
+  What is genuinely proven is narrower and worth stating precisely: a payload,
+  *once a renter has it*, can be verified against the on-chain commitment before
+  any reveal exists. Getting it to them is unbuilt.
 
 - **Epoch shopping.** An author can abandon a bad epoch and open a fresh one.
   Not preventable; made visible instead. Every epoch ever opened is listed,

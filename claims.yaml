@@ -16,7 +16,7 @@
 meta:
   network: 0G mainnet
   chainId: 16661
-  updated: 2026-08-25
+  updated: 2026-08-29
 
 contracts:
   recordBook: "0x40eB003340f467e096F8Ae30f8696bE40Eba922c"
@@ -176,6 +176,13 @@ claims:
     evidence:
       - "renter 0xae8caDeDa5B0C762ECC2a242544A6A1b04Ebd40E"
       - "settle tx 0x5c7dcb515890142acbebf850956f014202f3e46c70833d0a56bb5902eab464ec"
+    caveat: >
+      The renter is a separate wallet with its own balance and its own signer,
+      so the on-chain half is real. The off-chain half is not: the renter is a
+      variable inside runtime/src/cli/rental.ts, and it "receives" the payload
+      by holding a reference to it. See signal-delivery. What this proves is the
+      escrow, grant, settle and withdraw path plus pre-reveal verifiability of a
+      payload already in hand, not that a signal reached anybody.
 
   - id: stronger-than-sdk
     claim: >
@@ -234,8 +241,33 @@ not_claimed:
   - "Any cryptographic strength from the ERC-7857 draft verifier. Fief no longer depends on it."
   - "That a renter cannot approximate the strategy by observing many outputs."
   - "Mainnet Agentic ID or ERC-8004. Those registries are testnet-only upstream."
+  - "That a renter can receive a signal. Nothing delivers the cleartext to them; see signal-delivery below. What is proven is that a payload, once held, verifies against the on-chain commitment before any reveal exists."
 
 open:
+  - id: signal-delivery
+    claim: "A renter is delivered the cleartext signal they escrowed for."
+    rung: 0
+    status: not-started
+    blocked_on: >
+      Nothing is built. RenterMessage is produced inside the runtime process and
+      never leaves it; there is no API route in web/app and no feed. In
+      runtime/src/cli/rental.ts the renter is a variable in the same script,
+      which is the only reason that flow completes end to end.
+    note: >
+      The largest gap in the product and the first thing to build. It also
+      weakens two threat-model mitigations that assume a renter holds a payload:
+      permissionless reveal as an answer to "sit on a losing call", and renter
+      distillation as a live risk. Today the operator is the sole holder of
+      every payload before reveal.
+
+  - id: runtime-published
+    claim: "An operator can run an agent without cloning this repository."
+    rung: 0
+    status: not-started
+    blocked_on: >
+      @fief/runtime is private. The commit loop legitimately needs a long-lived
+      process, but it should ship as a package or a hosted runner.
+
   - id: erc8004-feedback-onchain
     claim: "A renter's ERC-8004 feedback redeemed on-chain against a serve proof."
     rung: 0

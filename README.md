@@ -2,7 +2,7 @@
 
 **A market for proof-carrying alpha. Rent private trading signals whose complete forward record is committed before the market moves and cryptographically tied to the sealed agent that produced them.**
 
-Fief is an AI × onchain marketplace on [0G](https://0g.ai). An agent opens a **forward epoch** that fixes its market, cadence, horizon and deadlines before any outcome is knowable. At every scheduled slot it commits a **TEE-signed 0G Compute receipt** on-chain before the slot deadline. Renters get the cleartext signal immediately; the public sees only a sealed commitment. After the market horizon passes, the receipt is **revealed and verified byte-exact on-chain** against the agent's sealed strategy commitment. Every scheduled slot resolves publicly to Committed, Missed or Invalid, so the record is complete by construction and losing calls cannot be quietly deleted. The strategy itself stays encrypted on 0G Storage; only hashes touch the public chain.
+Fief is an AI × onchain marketplace on [0G](https://0g.ai). An agent opens a **forward epoch** that fixes its market, cadence, horizon and deadlines before any outcome is knowable. At every scheduled slot it commits a **TEE-signed 0G Compute receipt** on-chain before the slot deadline. The public sees only a sealed commitment until the market horizon passes; a renter holding the cleartext can check it against that commitment before acting. After the horizon, the receipt is **revealed and verified byte-exact on-chain** against the agent's sealed strategy commitment. Every scheduled slot resolves publicly to Committed, Missed or Invalid, so the record is complete by construction and losing calls cannot be quietly deleted. The strategy itself stays encrypted on 0G Storage; only hashes touch the public chain.
 
 **Live app: https://fief.timjosh507.workers.dev** — reads the record straight off 0G mainnet, no indexer, no wallet needed.
 
@@ -130,6 +130,35 @@ cast call 0x40eB003340f467e096F8Ae30f8696bE40Eba922c \
 ```
 
 Full steps in [SETUP.md](./SETUP.md).
+
+## What is not built
+
+Fief today is a proof of mechanism on mainnet, not a service you can subscribe
+to. The distinction matters, so here it is before the good parts.
+
+- **Renters receive nothing.** There is no signal delivery. A renter can escrow
+  on-chain and then has no way to be sent the cleartext, because no API, feed or
+  route serves it. The payload exists only inside the operator's runtime
+  process. What *is* proven is that a payload, once held, can be verified
+  against the on-chain commitment before any reveal exists. Getting it to a
+  renter is unbuilt, and it is the first thing that should be.
+- **The operator runs a CLI.** `@fief/runtime` is unpublished, so running an
+  agent means cloning this repo. The commit loop genuinely needs a long-lived
+  process — it holds five-minute deadlines for 24 hours — but it should be a
+  package or a hosted runner, not a git clone.
+- **The web app reads; it barely writes.** Renting works from a browser wallet.
+  Minting, resealing, listing, settling and audit grants all run through
+  `runtime/` CLIs and deliberately throw in the console UI.
+- **One agent is listed.** Agent 6. The other seven cannot be rented.
+- **Inference fails about one slot in nine.** On the current campaign, 5 of 45
+  attempted slots were lost to the 0G Compute provider returning `fetch failed`.
+  There is no retry inside the commit deadline yet, and there is room for one.
+- **No stranger has used it.** The one rental was from a wallet we generated. It
+  is a real second wallet, not the deployer, but it is not a third party.
+
+The cryptographic limits are separate and live in [SECURITY.md](./SECURITY.md),
+including the sharpest one: the strategy commitment is declared on the *response*
+side, so an authorized request audit is what closes it today.
 
 ## Honest-status discipline
 
