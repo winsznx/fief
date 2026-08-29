@@ -231,6 +231,16 @@ async function main(): Promise<void> {
         pending.splice(i, 1);
         log(`slot ${m.slot}: REVEALED`);
       } catch (e) {
+        // A slot someone else already revealed is done, not failing. Retrying it
+        // every cadence forever is what the old code did, and it left one dead
+        // entry logging a revert on every single slot for the rest of the run.
+        // Reveal is permissionless by design, so another party getting there
+        // first is a normal outcome and not an error.
+        if (await book.isRevealed(agentId, epochId, m.slot)) {
+          pending.splice(i, 1);
+          log(`slot ${m.slot}: already revealed by someone else, dropping`);
+          continue;
+        }
         log(`slot ${m.slot}: reveal failed, will retry: ${(e as Error).message.split('\n')[0]}`);
       }
     }
