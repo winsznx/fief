@@ -10,7 +10,9 @@ gives the alternative.
 
 ## Before you press record
 
-**1. Pre-warm every page.** Live reads take 4-7 seconds cold and there is no
+**1. Pre-warm every page.** Cold loads measured 2026-08-29 after the last
+deploy: `/agents` 0.6s, `/proof` 4.2s, `/agents/7` 6.2s, `/agents/8` 6.2s, `/`
+6.5s. Live reads are slow and there is no
 cache, deliberately, because a stale completeness number is the one thing this
 product must not show. Load each of these once, then leave the tabs open:
 
