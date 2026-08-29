@@ -251,8 +251,9 @@ open:
     blocked_on: "Wall-clock time. Needs the runtime running continuously."
     note: >
       Agent 7 epoch 0 is the first attempt and it failed: the runtime stopped at
-      slot 33 of 288 on 2026-08-25 20:32 UTC because the machine slept, and the
-      remaining 255 slots are permanently Missed. Left on the record and
+      slot 33 of 288 on 2026-08-25 20:32 UTC because the machine slept, the
+      remaining 255 slots are permanently Missed, and the epoch stands at
+      10.76%. Left on the record and
       deliberately not hidden — an operator outage is exactly the failure this
       system exists to make unforgeable, and the epoch cannot be reopened,
       backfilled or deleted. Agent 7 epoch 1 opened 2026-08-29 16:12 UTC under

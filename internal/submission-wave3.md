@@ -67,24 +67,17 @@ cast call 0x40eB003340f467e096F8Ae30f8696bE40Eba922c \
 
 ## 4. Demo video (<= 3 min)
 
-Shot list. Every beat is backed by shipped code, which is the point: the
-original screenplay showed a rental before the rental existed.
+Shot list, timings and the exact commands live in
+[video-runbook.md](video-runbook.md). Every beat there was run against mainnet
+and timed, including the ones that turned out to be unfilmable, so nothing in
+the recording depends on a command behaving differently than it did when the
+list was written.
 
-| t | shot | line |
-|---|---|---|
-| 0:00 | a bot listing with a glossy backtest | "Trading bots can fake a backtest. Worse, even a real record can be edited: just delete the losses." |
-| 0:15 | ChainScan, `openEpoch` tx, spec expanded | "Fief fixes the schedule on-chain first. Market, cadence, horizon, deadlines, 144 slots, timestamped before any of it happened. The operator can't change it now." |
-| 0:35 | terminal, `pnpm epoch`, slot fires | "A slot comes due. 0G Compute runs the inference inside a TEE and signs the receipt." |
-| 0:50 | split: renter feed shows `UP`, ChainScan shows only a hash | "The renter sees the call. The public sees a commitment. That gap is what they're paying for." |
-| 1:05 | renter terminal: `payload opens the on-chain commitment: true` | "And they don't have to trust us. They check the payload against the commitment the chain already holds." |
-| 1:20 | `pnpm adversarial`, two rejections | "Commit after the deadline: rejected. That's the attack that makes fake records possible, closed on-chain." |
-| 1:35 | the red tx on ChainScan, status success | "Flip one byte and reveal: rejected. Note the transaction succeeded, carrying the rejection as an event." |
-| 1:50 | honest reveal lands, completeness ticks to 100% | "Reveal it honestly and it still works. A bad reveal can't be used to damage someone's record." |
-| 2:05 | the live app, marketplace | "Every agent, read straight off mainnet. No indexer, no database." |
-| 2:15 | an agent's completeness bar | "The denominator is the schedule, fixed before any of this happened. A slot the agent missed stays missed." |
-| 2:25 | the slot timeline on /proof | "Sealed 98 seconds inside its deadline, and private for 338 seconds after that. That window is what a renter buys." |
-| 2:40 | `cast call expectedTeeSigner`, clean terminal | "No frontend needed. The enclave key comes straight from 0G's own serving contract." |
-| 2:55 | title card | "Fief. The same sealed strategy said this, at this time, before the answer was known." |
+The beat that matters is the last third. Agent 7's first campaign stopped at
+slot 33 of 288 because the machine slept, and 255 slots are permanently missed
+on mainnet. The video shows that, on our own agent, next to the epoch that is
+running now. It is the only moment where the system costs us something, and it
+argues the thesis better than any passing check does.
 
 Record at 1080p minimum, terminal at 16px+, ChainScan zoomed so hashes are
 legible on a projector.
@@ -113,31 +106,37 @@ cd packages/verify && pnpm start -- --tx 0xc8543dfc…      # 6/6
 
 ## 6. Public X post
 
-> Trading bots can fake a backtest. Even a real track record can be edited —
-> just delete the losses.
+> Our own trading agent is sitting at 10.76% on mainnet right now.
 >
-> Fief makes agents commit every live call on-chain *before* the market moves.
+> It committed 33 calls, then my laptop went to sleep and it missed 255. I
+> can't reopen that epoch, backfill it, or delete it. It's public forever.
+>
+> That's Fief working.
+>
+> Every bot's track record is editable. Not by forging signatures, by simply
+> not publishing the calls that went wrong. Fief fixes the schedule on-chain
+> before any outcome exists, so a call that never shows up is a permanent,
+> public Missed.
 >
 > Renters get the signal while it's worth money. Everyone else gets the proof
 > once it isn't.
 >
 > Live on @0G_labs mainnet:
-> • schedule fixed on-chain before any outcome existed
+> • schedule timestamped before any outcome was knowable
 > • every call committed inside its deadline from a TEE-signed 0G Compute receipt
-> • sealed for 338s while the renter holds it, then revealed and verified byte-exact
-> • every scheduled slot resolves publicly — a missed call stays missed
+> • sealed 338s while the renter holds it, then revealed and verified byte-exact
+> • tamper one byte and the chain rejects it, and the honest record is undamaged
 >
-> Tamper one byte and the chain rejects it. Reveal honestly and the record is
-> undamaged, so nobody can grief an agent's score.
->
-> Live: fief.timjosh507.workers.dev
+> Live: fief.timjosh507.workers.dev/agents/7
 > RecordBook 0x40eB003340f467e096F8Ae30f8696bE40Eba922c
 > github.com/winsznx/fief
 >
 > #0GBridge #BuildOn0G @0G_Builders @AKINDO_io
 
-Attach: the completeness bar screenshot, or the 20s clip of the red tx being
-rejected followed by the honest reveal landing.
+Attach: the "Every epoch, including the bad ones" panel on agent 7, showing the
+abandoned epoch and the running one side by side. Nothing else in the project
+argues the point as well, and it costs us to publish it, which is exactly why
+it lands.
 
 ## 6b. Answers to the obvious questions
 

@@ -41,6 +41,23 @@ caught and the record was not damaged, so a bad reveal cannot be used to grief a
 A commit past its deadline is rejected `SlotDeadlinePassed` and a reveal before the window
 `RevealTooEarly`. Reproduce every one of these with `pnpm adversarial` in [`runtime/`](./runtime/).
 
+### The run that went wrong
+
+[Agent 7](https://fief.timjosh507.workers.dev/agents/7) is a 288-slot campaign at
+a five-minute cadence. It committed 33 slots and then stopped, on 2026-08-25 at
+20:32 UTC, because the machine running it went to sleep. The other **255 slots
+are permanently Missed**, and the epoch sits at **10.76%**.
+
+We cannot reopen it, backfill it or delete it. An operator can always abandon a
+bad epoch and open a clean one, and Fief does not prevent that either. What it
+does is list every epoch the agent ever opened, side by side, with lifetime
+completeness across all of them. A fresh 100% has to be read next to whatever it
+was started to escape.
+
+This is the most useful thing in the repository. Everything else demonstrates
+the mechanism working in our favour; this is it working against us, on mainnet,
+where we cannot take it back.
+
 The enclave key is read live: `RecordBook.expectedTeeSigner` returns `0xA46EA4FC…46B9` straight from 0G's `InferenceServing.getService`, with no admin pin set.
 
 ## The mechanism (one sentence)
