@@ -171,6 +171,7 @@ export class BookClient {
       args: [agentId, epochId],
     })) as {
       opened: boolean;
+      openedAt: bigint;
       abandonedAt: bigint;
       finalized: boolean;
       committedCount: number;
