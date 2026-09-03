@@ -46,3 +46,8 @@ Thumbs.db
 # Supervisor lock directories.
 running/*.lock
 runtime/.campaign-*.lock/
+
+# Video-prep scratch files, not project documentation.
+internal/teleprompter.md
+internal/teleprompter.docx
+internal/video-runbook.md
