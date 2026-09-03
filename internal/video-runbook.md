@@ -264,7 +264,7 @@ get, so don't skip past the row.
 **Do:** Switch to Terminal A. Paste and run.
 
 ```
-pnpm fief-verify --tx 0xc8543dfc0a44adced1c35bce3b5f336feaba8e31ff658a81f2eab0bd249ade19
+pnpm fief-verify --tx 0xf78fb246ffba304aea4f888c5b04a9cc17f3b3414c09a7fb4e185aefd2f800ef
 ```
 
 This is the same command the live site's copy button hands a visitor, which is

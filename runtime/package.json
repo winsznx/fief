@@ -17,7 +17,8 @@
     "verify": "pnpm typecheck && pnpm test",
     "campaign": "tsx --env-file-if-exists=.env src/cli/campaign.ts",
     "demo-reject": "tsx --env-file-if-exists=.env src/cli/demo-reject.ts",
-    "schedule": "tsx --env-file-if-exists=.env src/cli/schedule.ts"
+    "schedule": "tsx --env-file-if-exists=.env src/cli/schedule.ts",
+    "fresh-slot": "tsx --env-file-if-exists=.env src/cli/fresh-slot.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
