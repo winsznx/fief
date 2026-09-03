@@ -33,7 +33,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Pinned: an unpinned foundry-toolchain resolves to whatever forge shipped
+      # that day, and 1.8.1 changed gas metering enough to blow the §13 reveal
+      # budget test (235849 -> 297505 gas, same code, same fixtures) without
+      # any change on this side. Bump deliberately, not by drift.
       - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.7.1 }
       - uses: pnpm/action-setup@v4
         with: { version: 11 }
       - uses: actions/setup-node@v4
